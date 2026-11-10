@@ -328,3 +328,66 @@ main { padding-top: 10px; }
 }
 
 body { min-width: 0; }
+
+.app-shell { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+main { padding-top: 10px; }
+.tab-panel { min-width: 0; }
+.map-tab-panel[hidden], .route-panel[hidden] { display: none; }
+.bottom-tabs {
+  position: fixed;
+  z-index: 4;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 1160px);
+  min-height: 66px;
+  margin: 0 auto;
+  padding: 6px max(16px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  border-top: 1px solid #e6ebe3;
+  background: #ffffffed;
+  box-shadow: 0 -5px 18px #2536290c;
+  backdrop-filter: blur(14px);
+}
+.bottom-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #78827b;
+  font-size: 10px;
+  font-weight: 600;
+}
+.bottom-tab.is-active { background: #eff5e9; color: var(--green-dark); }
+.bottom-tab:focus-visible { outline: 2px solid #a9d77d; outline-offset: -2px; }
+.bottom-tab-icon { font-size: 19px; line-height: 1; }
+.delivery-toggle.is-added {
+  border-color: #e4ad20;
+  background: #e9b52c;
+  color: #fff;
+}
+.delivery-toggle.is-added:hover { border-color: #ce9714; background: #dca715; }
+.delivery-toggle.is-delivered {
+  border-color: #2e6848;
+  background: #2e6848;
+  color: #fff;
+}
+.delivery-toggle.is-delivered:hover { border-color: #214f36; background: #214f36; }
+.delivery-toggle:focus-visible { outline-color: #a9d77d; }
+
+@media (max-width: 560px) {
+  .app-shell { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .bottom-tabs {
+    min-height: 60px;
+    padding: 4px max(10px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+  .bottom-tab { min-height: 46px; font-size: 9px; }
+  .bottom-tab-icon { font-size: 18px; }
+}

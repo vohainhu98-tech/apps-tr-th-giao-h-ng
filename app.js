@@ -35,6 +35,9 @@ const elements = {
   map: document.querySelector("#delivery-map"),
   mapStatus: document.querySelector("#map-status"),
   mapFitButton: document.querySelector("#map-fit-button"),
+  tabButtons: document.querySelectorAll(".bottom-tab"),
+  routeTabPanel: document.querySelector("#route-tab-panel"),
+  mapTabPanel: document.querySelector("#map-tab-panel"),
   shortcutLink: document.querySelector("#shortcut-link"),
   shortcutConfigureButton: document.querySelector("#shortcut-configure-button"),
   shortcutDialog: document.querySelector("#shortcut-dialog"),
@@ -290,15 +293,17 @@ function renderCustomers() {
     : [];
   const isSearching = query.length > 0;
   const visible = [...(isSearching ? matches : scheduled)];
-  if (currentPosition) {
-    visible.sort((first, second) => {
-      const firstCoordinates = getCustomerCoordinates(first);
-      const secondCoordinates = getCustomerCoordinates(second);
-      const firstDistance = firstCoordinates ? distanceMeters(currentPosition, firstCoordinates) : Infinity;
-      const secondDistance = secondCoordinates ? distanceMeters(currentPosition, secondCoordinates) : Infinity;
-      return firstDistance - secondDistance;
-    });
-  }
+  visible.sort((first, second) => {
+    const firstDelivered = first.deliveredDates.includes(today);
+    const secondDelivered = second.deliveredDates.includes(today);
+    if (firstDelivered !== secondDelivered) return Number(firstDelivered) - Number(secondDelivered);
+    if (firstDelivered || !currentPosition) return 0;
+    const firstCoordinates = getCustomerCoordinates(first);
+    const secondCoordinates = getCustomerCoordinates(second);
+    const firstDistance = firstCoordinates ? distanceMeters(currentPosition, firstCoordinates) : Infinity;
+    const secondDistance = secondCoordinates ? distanceMeters(currentPosition, secondCoordinates) : Infinity;
+    return firstDistance - secondDistance;
+  });
 
   elements.todayLabel.textContent = formatTodayLabel();
   elements.summary.textContent = isSearching
@@ -824,6 +829,35 @@ document.querySelector("#close-dialog-button").addEventListener("click", () => e
 document.querySelector("#cancel-dialog-button").addEventListener("click", () => elements.dialog.close());
 elements.search.addEventListener("input", renderCustomers);
 elements.areaFilter.addEventListener("change", renderCustomers);
+elements.tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const showMap = button.dataset.tab === "map";
+    elements.routeTabPanel.hidden = showMap;
+    elements.mapTabPanel.hidden = !showMap;
+    elements.tabButtons.forEach((tabButton) => {
+      const selected = tabButton === button;
+      tabButton.classList.toggle("is-active", selected);
+      tabButton.setAttribute("aria-selected", String(selected));
+      tabButton.tabIndex = selected ? 0 : -1;
+    });
+    if (showMap && deliveryMap) {
+      window.setTimeout(() => {
+        deliveryMap.invalidateSize();
+        fitDeliveryMap();
+      }, 0);
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+  });
+  button.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const buttons = [...elements.tabButtons];
+    const currentIndex = buttons.indexOf(button);
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    buttons[(currentIndex + direction + buttons.length) % buttons.length].click();
+    buttons[(currentIndex + direction + buttons.length) % buttons.length].focus();
+  });
+});
 elements.mapFitButton.addEventListener("click", fitDeliveryMap);
 elements.allowLocationButton.addEventListener("click", requestLocationAndTrack);
 elements.locationGate.addEventListener("cancel", (event) => event.preventDefault());

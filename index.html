@@ -32,7 +32,7 @@
       </header>
 
       <main>
-        <section class="route-panel" aria-labelledby="route-title">
+        <section class="tab-panel route-panel" id="route-tab-panel" role="tabpanel" aria-labelledby="route-tab-button">
           <div class="section-heading">
             <div>
               <p class="eyebrow" id="today-label">HÔM NAY</p>
@@ -64,41 +64,54 @@
           </div>
         </section>
 
-        <section class="map-panel" aria-labelledby="map-title">
-          <div class="map-heading">
-            <div>
-              <p class="eyebrow">BẢN ĐỒ GIAO HÀNG</p>
-              <h2 id="map-title">Vị trí của bạn và khách hôm nay</h2>
+        <section class="tab-panel map-tab-panel" id="map-tab-panel" role="tabpanel" aria-labelledby="map-tab-button" hidden>
+          <section class="map-panel" aria-labelledby="map-title">
+            <div class="map-heading">
+              <div>
+                <p class="eyebrow">BẢN ĐỒ GIAO HÀNG</p>
+                <h2 id="map-title">Vị trí của bạn và khách hôm nay</h2>
+              </div>
+              <button class="secondary-button map-fit-button" id="map-fit-button" type="button" disabled>Hiện tất cả vị trí</button>
             </div>
-            <button class="secondary-button map-fit-button" id="map-fit-button" type="button" disabled>Hiện tất cả vị trí</button>
-          </div>
-          <p class="map-status" id="map-status" role="status" aria-live="polite">Đang chờ vị trí hiện tại hoặc khách hàng đã được định vị.</p>
-          <div class="delivery-map" id="delivery-map" role="region" aria-label="Bản đồ vị trí giao hàng"></div>
-          <div class="map-legend" aria-label="Chú giải bản đồ">
-            <span><i class="map-legend-dot is-you"></i>Vị trí của bạn</span>
-            <span><i class="map-legend-dot is-pending"></i>Khách chưa giao</span>
-            <span><i class="map-legend-dot is-delivered"></i>Đã giao</span>
-          </div>
-          <p class="map-attribution-note">Bản đồ cần kết nối Internet. Nhà cung cấp bản đồ có thể nhận yêu cầu tải các khu vực bạn xem; thông tin khách hàng được lưu trên thiết bị.</p>
+            <p class="map-status" id="map-status" role="status" aria-live="polite">Đang chờ vị trí hiện tại hoặc khách hàng đã được định vị.</p>
+            <div class="delivery-map" id="delivery-map" role="region" aria-label="Bản đồ vị trí giao hàng"></div>
+            <div class="map-legend" aria-label="Chú giải bản đồ">
+              <span><i class="map-legend-dot is-you"></i>Vị trí của bạn</span>
+              <span><i class="map-legend-dot is-pending"></i>Khách chưa giao</span>
+              <span><i class="map-legend-dot is-delivered"></i>Đã giao</span>
+            </div>
+            <p class="map-attribution-note">Bản đồ cần kết nối Internet. Nhà cung cấp bản đồ có thể nhận yêu cầu tải các khu vực bạn xem; thông tin khách hàng được lưu trên thiết bị.</p>
+          </section>
+
+          <aside class="nearby-panel" aria-labelledby="nearby-title">
+            <div class="nearby-icon" aria-hidden="true">⌖</div>
+            <div class="nearby-content">
+              <p class="eyebrow">NHẮC NHỞ KHI ĐẾN GẦN</p>
+              <h2 id="nearby-title">Để điện thoại chỉ đường</h2>
+              <p id="tracking-status">Bật theo dõi để nhận nhắc nhở khi bạn cách khách trong lộ trình khoảng 500 m.</p>
+              <p class="location-readout" id="location-readout"></p>
+            </div>
+            <div class="nearby-actions">
+              <button class="dark-button" id="tracking-button" type="button">Bật theo dõi</button>
+              <button class="text-button notification-button" id="notification-button" type="button">Cho phép thông báo</button>
+            </div>
+          </aside>
+
+          <p class="footnote">Vị trí chỉ được dùng trên thiết bị của bạn để tính khoảng cách. Để nhận thông báo trên iPhone, hãy thêm ứng dụng vào Màn hình chính. Trình duyệt cần đang mở để theo dõi vị trí.</p>
         </section>
-
-        <aside class="nearby-panel" aria-labelledby="nearby-title">
-          <div class="nearby-icon" aria-hidden="true">⌖</div>
-          <div class="nearby-content">
-            <p class="eyebrow">NHẮC NHỞ KHI ĐẾN GẦN</p>
-            <h2 id="nearby-title">Để điện thoại chỉ đường</h2>
-            <p id="tracking-status">Bật theo dõi để nhận nhắc nhở khi bạn cách khách trong lộ trình khoảng 500 m.</p>
-            <p class="location-readout" id="location-readout"></p>
-          </div>
-          <div class="nearby-actions">
-            <button class="dark-button" id="tracking-button" type="button">Bật theo dõi</button>
-            <button class="text-button notification-button" id="notification-button" type="button">Cho phép thông báo</button>
-          </div>
-        </aside>
-
-        <p class="footnote">Vị trí chỉ được dùng trên thiết bị của bạn để tính khoảng cách. Để nhận thông báo trên iPhone, hãy thêm ứng dụng vào Màn hình chính. Trình duyệt cần đang mở để theo dõi vị trí.</p>
       </main>
     </div>
+
+    <nav class="bottom-tabs" role="tablist" aria-label="Chuyển màn hình">
+      <button class="bottom-tab is-active" id="route-tab-button" type="button" role="tab" aria-selected="true" aria-controls="route-tab-panel" data-tab="route">
+        <span class="bottom-tab-icon" aria-hidden="true">☷</span>
+        <span>Giao hàng</span>
+      </button>
+      <button class="bottom-tab" id="map-tab-button" type="button" role="tab" aria-selected="false" aria-controls="map-tab-panel" data-tab="map">
+        <span class="bottom-tab-icon" aria-hidden="true">⌖</span>
+        <span>Bản đồ</span>
+      </button>
+    </nav>
 
     <dialog class="customer-dialog shortcut-dialog" id="shortcut-dialog" aria-labelledby="shortcut-title">
       <form id="shortcut-form">
