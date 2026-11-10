@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "Gần Đây — Lộ trình giao hàng",
+  "short_name": "Gần Đây",
+  "description": "Quản lý khách cần giao và nhận nhắc nhở khi bạn ở gần.",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7f2",
+  "theme_color": "#f5f7f2",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
