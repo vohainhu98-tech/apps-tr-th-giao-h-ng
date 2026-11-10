@@ -1,4 +1,4 @@
-const CACHE_NAME = "gan-day-pwa-v11";
+const CACHE_NAME = "gan-day-pwa-v15";
 const APP_ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

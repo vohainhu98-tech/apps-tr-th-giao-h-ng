@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Gần Đây — Lộ trình giao hàng",
-  "short_name": "Gần Đây",
-  "description": "Quản lý khách cần giao và nhận nhắc nhở khi bạn ở gần.",
+  "name": "Hoa Tiêu cho Shipper",
+  "short_name": "Hoa Tiêu",
+  "description": "Quản lý khách giao hàng và định vị khách gần bạn.",
   "lang": "vi",
   "start_url": "./",
   "scope": "./",

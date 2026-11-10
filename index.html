@@ -4,24 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f5f7f2">
-    <meta name="description" content="Quản lý khách cần giao và nhận nhắc nhở khi bạn ở gần.">
+    <meta name="description" content="Hoa Tiêu cho Shipper giúp quản lý khách giao hàng và định vị khách gần bạn.">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Gần Đây">
+    <meta name="apple-mobile-web-app-title" content="Hoa Tiêu">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="./styles.css">
-    <title>Gần Đây — Lộ trình giao hàng</title>
+    <title>Hoa Tiêu cho Shipper</title>
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="./" aria-label="Gần Đây, trang chủ">
+        <a class="brand" href="./" aria-label="Hoa Tiêu cho Shipper, trang chủ">
           <span class="brand-mark" aria-hidden="true">↗</span>
-          <span>gần<span class="brand-highlight">đây</span></span>
+          <span>Hoa <span class="brand-highlight">Tiêu</span></span>
         </a>
         <div class="topbar-right">
           <span class="privacy-note"><span class="privacy-dot"></span>Dữ liệu chỉ lưu trên máy bạn</span>
+          <div class="shortcut-control">
+            <a class="shortcut-link" id="shortcut-link" target="_blank" rel="noopener noreferrer" hidden></a>
+            <button class="icon-button shortcut-configure-button" id="shortcut-configure-button" type="button" aria-label="Thêm shortcut ứng dụng" title="Thêm shortcut ứng dụng">＋</button>
+          </div>
           <button class="icon-button" id="settings-button" type="button" aria-label="Cài đặt" title="Cài đặt">⚙</button>
           <button class="icon-button" id="install-button" type="button" hidden aria-label="Cài ứng dụng" title="Cài ứng dụng">↓</button>
         </div>
@@ -60,6 +64,24 @@
           </div>
         </section>
 
+        <section class="map-panel" aria-labelledby="map-title">
+          <div class="map-heading">
+            <div>
+              <p class="eyebrow">BẢN ĐỒ GIAO HÀNG</p>
+              <h2 id="map-title">Vị trí của bạn và khách hôm nay</h2>
+            </div>
+            <button class="secondary-button map-fit-button" id="map-fit-button" type="button" disabled>Hiện tất cả vị trí</button>
+          </div>
+          <p class="map-status" id="map-status" role="status" aria-live="polite">Đang chờ vị trí hiện tại hoặc khách hàng đã được định vị.</p>
+          <div class="delivery-map" id="delivery-map" role="region" aria-label="Bản đồ vị trí giao hàng"></div>
+          <div class="map-legend" aria-label="Chú giải bản đồ">
+            <span><i class="map-legend-dot is-you"></i>Vị trí của bạn</span>
+            <span><i class="map-legend-dot is-pending"></i>Khách chưa giao</span>
+            <span><i class="map-legend-dot is-delivered"></i>Đã giao</span>
+          </div>
+          <p class="map-attribution-note">Bản đồ cần kết nối Internet. Nhà cung cấp bản đồ có thể nhận yêu cầu tải các khu vực bạn xem; thông tin khách hàng được lưu trên thiết bị.</p>
+        </section>
+
         <aside class="nearby-panel" aria-labelledby="nearby-title">
           <div class="nearby-icon" aria-hidden="true">⌖</div>
           <div class="nearby-content">
@@ -77,6 +99,26 @@
         <p class="footnote">Vị trí chỉ được dùng trên thiết bị của bạn để tính khoảng cách. Để nhận thông báo trên iPhone, hãy thêm ứng dụng vào Màn hình chính. Trình duyệt cần đang mở để theo dõi vị trí.</p>
       </main>
     </div>
+
+    <dialog class="customer-dialog shortcut-dialog" id="shortcut-dialog" aria-labelledby="shortcut-title">
+      <form id="shortcut-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">TRUY CẬP NHANH</p>
+            <h2 id="shortcut-title">Shortcut ứng dụng</h2>
+          </div>
+          <button class="icon-button close-button" id="close-shortcut-button" type="button" aria-label="Đóng">×</button>
+        </div>
+        <p class="settings-copy">Nhập tên và liên kết mở ứng dụng. Có thể dùng URL web (https://) hoặc deep link do ứng dụng cung cấp. App đích cần được cài trên điện thoại để mở trực tiếp.</p>
+        <label class="form-field">Tên hiển thị<input id="shortcut-name" name="name" maxlength="32" required placeholder="Ví dụ: Bản đồ"></label>
+        <label class="form-field">URL hoặc deep link<input id="shortcut-url" name="url" type="text" inputmode="url" autocomplete="url" required maxlength="500" placeholder="Ví dụ: https://maps.google.com"></label>
+        <p class="form-error" id="shortcut-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button class="secondary-button shortcut-remove-button" id="remove-shortcut-button" type="button" hidden>Xóa shortcut</button>
+          <button class="primary-button" type="submit">Lưu shortcut</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog class="location-gate-dialog" id="location-gate" aria-labelledby="location-gate-title">
       <div class="location-gate-content">

@@ -33,7 +33,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font: 800 21px Manrope, sans-serif; letter-spacing: -1.2px; }
 .brand-mark { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 10px; background: var(--green); color: var(--lime); font-size: 23px; }
 .brand-highlight { color: var(--green); }
-.topbar-right { display: flex; align-items: center; gap: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.shortcut-control { display: inline-flex; align-items: center; gap: 5px; }
+.shortcut-configure-button { width: 32px; height: 32px; flex: 0 0 32px; font-size: 19px; }
+.shortcut-link { display: inline-flex; max-width: 150px; min-height: 34px; align-items: center; gap: 5px; overflow: hidden; padding: 0 9px; border: 1px solid #dfe8d9; border-radius: 9px; background: #fff; color: var(--green); font-size: 11px; font-weight: 700; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut-link:hover { border-color: #b7cfa9; background: #f7faf4; }
 .privacy-note { color: var(--muted); font-size: 12px; }
 .privacy-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #79a76a; }
 
@@ -89,6 +93,24 @@ h2 { margin-bottom: 0; font: 700 22px Manrope, sans-serif; letter-spacing: -.7px
 .empty-state p { max-width: 370px; margin: 0 auto 17px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .secondary-button { border: 1px solid #e4e9e0; background: #fff; color: var(--green); }
 .secondary-button:hover { background: #f6f9f2; }
+.map-panel { margin-top: 16px; padding: 21px 22px 15px; border: 1px solid #e9ece5; border-radius: 17px; background: var(--white); box-shadow: 0 8px 25px #344c3510; }
+.map-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.map-heading .eyebrow { margin-bottom: 5px; }
+.map-heading h2 { font-size: 17px; }
+.map-fit-button { min-height: 36px; padding: 0 11px; font-size: 10px; white-space: nowrap; }
+.map-fit-button:disabled { cursor: not-allowed; opacity: .6; }
+.map-status { min-height: 16px; margin: 11px 0 8px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.delivery-map { width: 100%; height: 330px; overflow: hidden; border-radius: 11px; background: #edf2e8; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: #68756b; font-size: 10px; }
+.map-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend-dot { width: 10px; height: 10px; border: 1px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #bcc5bb; }
+.map-legend-dot.is-you { background: #2675d8; }
+.map-legend-dot.is-pending { background: #df704b; }
+.map-legend-dot.is-delivered { background: #6f8b70; }
+.map-attribution-note { margin: 8px 0 0; color: #909990; font-size: 9px; line-height: 1.5; }
+.map-panel .leaflet-container { z-index: 0; font: inherit; }
+.map-panel .leaflet-popup-content { font: 12px/1.5 "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.map-panel .leaflet-popup-content a { color: var(--green); }
 
 .nearby-panel { display: flex; align-items: center; gap: 16px; margin-top: 16px; padding: 19px 22px; border-radius: 15px; background: #eaf1e4; }
 .nearby-icon { display: grid; width: 43px; height: 43px; flex: 0 0 43px; place-items: center; border-radius: 14px; background: #d6e6c9; color: var(--green); font-size: 23px; }
@@ -120,6 +142,8 @@ h2 { margin-bottom: 0; font: 700 22px Manrope, sans-serif; letter-spacing: -.7px
 .form-error { margin: -4px 0 13px; color: #b03b35; font-size: 11px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 14px; border-top: 1px solid #edf0ea; }
 .settings-dialog { width: min(500px, calc(100% - 28px)); }
+.shortcut-dialog { width: min(460px, calc(100% - 28px)); }
+.shortcut-remove-button { margin-right: auto; color: #a34a3c; }
 .location-gate-dialog { width: min(440px, calc(100% - 28px)); max-height: min(90vh, 620px); margin: auto; padding: 0; overflow-y: auto; border: 1px solid #e4e9e1; border-radius: 20px; background: #fff; color: var(--ink); box-shadow: 0 20px 70px #1c302c35; }
 .location-gate-dialog::backdrop { background: #17241dcc; backdrop-filter: blur(5px); }
 .location-gate-content { padding: 32px 28px 25px; text-align: center; }
@@ -158,8 +182,11 @@ h2 { margin-bottom: 0; font: 700 22px Manrope, sans-serif; letter-spacing: -.7px
   .app-shell { padding: 0 16px calc(22px + env(safe-area-inset-bottom)); }
   .topbar { height: 62px; }
   .brand { font-size: 19px; }
-  .topbar-right { gap: 7px; }
-  .privacy-note { max-width: 145px; font-size: 10px; }
+  .topbar-right { gap: 5px; }
+  .privacy-note { max-width: 105px; font-size: 9px; }
+  .shortcut-link { max-width: 94px; min-height: 32px; padding: 0 6px; font-size: 9px; }
+  .shortcut-control { gap: 3px; }
+  .topbar-right .shortcut-configure-button { width: 30px; height: 30px; flex-basis: 30px; }
   .topbar-right .icon-button { width: 32px; height: 32px; flex: 0 0 32px; }
   .route-panel { padding: 18px 14px 14px; border-radius: 15px; }
   .section-heading { align-items: flex-end; }
@@ -177,6 +204,11 @@ h2 { margin-bottom: 0; font: 700 22px Manrope, sans-serif; letter-spacing: -.7px
   .customer-card.search-result { flex-wrap: wrap; }
   .search-result .customer-actions { width: 100%; flex-direction: row; justify-content: flex-end; }
   .search-result .delivery-toggle { max-width: 100%; }
+  .map-panel { padding: 17px 13px 13px; border-radius: 15px; }
+  .map-heading { align-items: flex-start; }
+  .map-heading h2 { max-width: 205px; font-size: 14px; }
+  .map-fit-button { min-height: 32px; padding: 0 8px; font-size: 9px; }
+  .delivery-map { height: 270px; }
   .nearby-panel { align-items: flex-start; gap: 11px; padding: 15px 12px; }
   .nearby-icon { width: 35px; height: 35px; flex-basis: 35px; border-radius: 11px; }
   .nearby-content h2 { font-size: 14px; }
@@ -191,6 +223,108 @@ h2 { margin-bottom: 0; font: 700 22px Manrope, sans-serif; letter-spacing: -.7px
   .location-gate-content h2 { font-size: 20px; }
 }
 
+@media (max-width: 380px) {
+  .privacy-note { max-width: 76px; font-size: 8px; line-height: 1.25; }
+  .privacy-dot { margin-right: 4px; }
+  .shortcut-link { max-width: 74px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+.app-shell { padding-bottom: 28px; }
+.topbar { height: 60px; }
+.brand { gap: 7px; font-size: 17px; }
+.brand-mark { width: 28px; height: 28px; flex-basis: 28px; }
+main { padding-top: 10px; }
+.route-panel { padding: 17px 19px 13px; border-radius: 15px; }
+.route-controls { gap: 8px; margin: 13px 0 9px; }
+.search-control, .area-filter select { height: 40px; }
+.route-summary { margin: 2px 0 7px; font-size: 10px; }
+.customer-list { gap: 7px; }
+.customer-card { min-height: 62px; gap: 9px; padding: 8px 10px; border-radius: 10px; }
+.customer-avatar { width: 34px; height: 34px; flex-basis: 34px; }
+.customer-name { font-size: 12px; }
+.customer-meta { gap: 4px 9px; font-size: 10px; }
+.delivery-toggle { min-height: 34px; padding: 0 8px; font-size: 9px; }
+.map-panel { margin-top: 10px; padding: 14px 16px 10px; border-radius: 13px; }
+.map-heading h2 { font-size: 14px; }
+.map-status { margin: 7px 0 5px; font-size: 9px; }
+.delivery-map { height: 240px; border-radius: 9px; }
+.map-legend { gap: 6px 12px; margin-top: 7px; font-size: 9px; }
+.map-attribution-note { margin-top: 5px; font-size: 8px; }
+.nearby-panel { gap: 10px; margin-top: 10px; padding: 12px 14px; border-radius: 11px; }
+.nearby-icon { width: 34px; height: 34px; flex-basis: 34px; }
+.nearby-content h2 { font-size: 13px; }
+.nearby-content p:not(.eyebrow) { font-size: 10px; }
+.dark-button { min-width: 116px; min-height: 36px; font-size: 10px; }
+.footnote { margin-top: 8px; font-size: 9px; }
+
+@media (max-width: 760px) {
+  .app-shell { padding-right: 16px; padding-left: 16px; }
+  .topbar { height: 54px; }
+  main { padding-top: 8px; }
+  .route-panel { padding: 14px 13px 11px; }
+}
+
+@media (max-width: 560px) {
+  .app-shell { padding-right: 12px; padding-left: 12px; }
+  .topbar { height: 50px; gap: 5px; }
+  .brand { gap: 5px; font-size: 15px; }
+  .brand-mark { width: 25px; height: 25px; flex-basis: 25px; font-size: 18px; }
+  .topbar-right { gap: 4px; }
+  .privacy-note { max-width: 78px; font-size: 8px; line-height: 1.2; }
+  .privacy-dot { width: 6px; height: 6px; margin-right: 4px; }
+  .shortcut-link { max-width: 84px; min-height: 30px; padding: 0 5px; font-size: 9px; }
+  .shortcut-control { gap: 2px; }
+  .topbar-right .icon-button,
+  .topbar-right .shortcut-configure-button { width: 29px; height: 29px; flex: 0 0 29px; }
+  .route-panel { padding: 12px 9px 9px; border-radius: 11px; }
+  .section-heading .eyebrow { margin-bottom: 3px; }
+  h2 { font-size: 15px; }
+  .route-controls { grid-template-columns: minmax(0, 1fr) minmax(105px, 39%); gap: 5px; margin: 9px 0 7px; }
+  .search-control, .area-filter select { height: 37px; }
+  .search-control { gap: 6px; padding: 0 7px; }
+  .search-control input { font-size: 11px; }
+  .area-filter select { padding: 0 5px; font-size: 9px; }
+  .customer-card { gap: 6px; padding: 7px 6px; }
+  .customer-avatar { width: 29px; height: 29px; flex-basis: 29px; border-radius: 8px; font-size: 10px; }
+  .customer-name { font-size: 11px; }
+  .customer-meta { gap: 3px 6px; font-size: 9px; }
+  .customer-distance { margin-top: 3px; font-size: 9px; }
+  .directions-note-field { margin-top: 6px; font-size: 9px; }
+  .directions-note-field textarea { min-height: 38px; padding: 5px 7px; font-size: 10px; }
+  .delivery-toggle { min-height: 32px; padding: 3px 5px; font-size: 8px; }
+  .small-action { min-width: 30px; height: 30px; padding: 0 7px; }
+  .empty-state { padding: 19px 10px 16px; }
+  .empty-icon { width: 34px; height: 34px; margin-bottom: 8px; font-size: 20px; }
+  .empty-state h3 { font-size: 12px; }
+  .empty-state p { margin-bottom: 10px; font-size: 10px; }
+  .map-panel { margin-top: 8px; padding: 10px 8px 8px; border-radius: 11px; }
+  .map-heading { gap: 5px; }
+  .map-heading .eyebrow { margin-bottom: 3px; font-size: 8px; }
+  .map-heading h2 { max-width: 180px; font-size: 11px; }
+  .map-fit-button { min-height: 29px; padding: 0 5px; font-size: 8px; }
+  .map-status { min-height: 12px; margin: 5px 0 4px; font-size: 8px; }
+  .delivery-map { height: 205px; }
+  .map-legend { gap: 4px 8px; margin-top: 6px; font-size: 8px; }
+  .map-legend-dot { width: 8px; height: 8px; }
+  .map-attribution-note { font-size: 7px; }
+  .nearby-panel { gap: 7px; margin-top: 8px; padding: 9px 7px; }
+  .nearby-icon { width: 28px; height: 28px; flex-basis: 28px; border-radius: 8px; font-size: 16px; }
+  .nearby-content .eyebrow { margin-bottom: 2px; font-size: 7px; }
+  .nearby-content h2 { margin-bottom: 3px; font-size: 11px; }
+  .nearby-content p:not(.eyebrow) { font-size: 9px; }
+  .dark-button { min-width: 82px; min-height: 32px; padding: 0 5px; font-size: 9px; }
+  .notification-button { padding: 2px 0; font-size: 8px; }
+  .footnote { margin-top: 6px; font-size: 8px; }
+}
+
+@media (max-width: 380px) {
+  .privacy-note { max-width: 8px; overflow: hidden; font-size: 0; }
+  .privacy-dot { margin: 0; }
+  .shortcut-link { max-width: 68px; }
+}
+
+body { min-width: 0; }

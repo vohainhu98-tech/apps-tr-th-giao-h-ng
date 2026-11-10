@@ -1,5 +1,6 @@
 const STORAGE_KEY = "gan-day-customers-v1";
 const ADDRESS_STORAGE_KEY = "gan-day-addresses-v1";
+const SHORTCUT_STORAGE_KEY = "gan-day-shortcut-v1";
 const NEARBY_METERS = 500;
 const POSITION_REFRESH_MS = 10000;
 
@@ -31,6 +32,18 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   savedAddresses: document.querySelector("#saved-addresses"),
   addressForm: document.querySelector("#address-form"),
+  map: document.querySelector("#delivery-map"),
+  mapStatus: document.querySelector("#map-status"),
+  mapFitButton: document.querySelector("#map-fit-button"),
+  shortcutLink: document.querySelector("#shortcut-link"),
+  shortcutConfigureButton: document.querySelector("#shortcut-configure-button"),
+  shortcutDialog: document.querySelector("#shortcut-dialog"),
+  shortcutForm: document.querySelector("#shortcut-form"),
+  shortcutName: document.querySelector("#shortcut-name"),
+  shortcutUrl: document.querySelector("#shortcut-url"),
+  shortcutError: document.querySelector("#shortcut-error"),
+  closeShortcutButton: document.querySelector("#close-shortcut-button"),
+  removeShortcutButton: document.querySelector("#remove-shortcut-button"),
 };
 
 let customers = loadCustomers();
@@ -43,6 +56,14 @@ let currentPosition = null;
 let nearbyCustomerId = null;
 let toastTimeout;
 let deferredInstallPrompt = null;
+let directionsNoteSaveTimer = null;
+let customerRenderDeferred = false;
+let mapLibraryPromise = null;
+let deliveryMap = null;
+let selfMapMarker = null;
+let customerMapMarkers = new Map();
+let hasSetInitialMapView = false;
+let shortcut = loadShortcut();
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -104,6 +125,51 @@ function saveAddresses() {
     console.error("Không thể lưu danh sách địa chỉ:", error);
     showToast("Không thể lưu danh sách địa chỉ. Bộ nhớ thiết bị có thể đã đầy.");
     return false;
+  }
+}
+
+function loadShortcut() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHORTCUT_STORAGE_KEY) || "null");
+    if (!saved) return null;
+    if (typeof saved.name !== "string" || typeof saved.url !== "string" || !isAllowedShortcutUrl(saved.url)) {
+      throw new Error("Shortcut đã lưu không hợp lệ.");
+    }
+    return { name: saved.name, url: saved.url };
+  } catch (error) {
+    console.error("Không thể đọc shortcut đã lưu:", error);
+    showToast("Không đọc được shortcut đã lưu.");
+    return null;
+  }
+}
+
+function isAllowedShortcutUrl(value) {
+  try {
+    const url = new URL(value);
+    return /^[a-z][a-z\d+.-]*:/i.test(value)
+      && !["javascript:", "data:", "file:", "blob:", "about:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function renderShortcut() {
+  const configured = Boolean(shortcut);
+  elements.shortcutLink.hidden = !configured;
+  elements.shortcutConfigureButton.textContent = configured ? "✎" : "＋";
+  elements.shortcutConfigureButton.setAttribute(
+    "aria-label",
+    configured ? "Chỉnh sửa shortcut ứng dụng" : "Thêm shortcut ứng dụng",
+  );
+  elements.shortcutConfigureButton.title = configured ? "Chỉnh sửa shortcut" : "Thêm shortcut ứng dụng";
+  if (shortcut) {
+    elements.shortcutLink.href = shortcut.url;
+    elements.shortcutLink.textContent = `↗ ${shortcut.name}`;
+    elements.shortcutLink.title = `Mở ${shortcut.name}`;
+  } else {
+    elements.shortcutLink.removeAttribute("href");
+    elements.shortcutLink.textContent = "";
+    elements.shortcutLink.removeAttribute("title");
   }
 }
 
@@ -197,6 +263,16 @@ function renderSavedAddresses() {
 }
 
 function renderCustomers() {
+  updateDeliveryMap();
+
+  const activeElement = document.activeElement;
+  if (activeElement instanceof HTMLTextAreaElement
+    && activeElement.matches('textarea[data-action="save-directions-note"]')) {
+    customerRenderDeferred = true;
+    return;
+  }
+  customerRenderDeferred = false;
+
   const today = localDateKey();
   const query = elements.search.value.trim();
   const phoneDigits = normalizePhone(query);
@@ -287,6 +363,132 @@ function renderCustomers() {
       </div>
     </article>`;
   }).join("");
+}
+
+function loadMapLibrary() {
+  if (window.L) return Promise.resolve(window.L);
+  if (mapLibraryPromise) return mapLibraryPromise;
+
+  mapLibraryPromise = new Promise((resolve, reject) => {
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+    document.head.append(stylesheet);
+
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    script.onload = () => resolve(window.L);
+    script.onerror = () => reject(new Error("Không tải được thư viện bản đồ."));
+    document.head.append(script);
+  });
+  return mapLibraryPromise;
+}
+
+function customerPopupContent(customer) {
+  const phone = customer.phone
+    ? `<br><a href="tel:${escapeHtml(customer.phone.replace(/[^\d+]/g, ""))}">${escapeHtml(customer.phone)}</a>`
+    : "";
+  const address = customer.address ? `<br>${escapeHtml(customer.address)}` : "";
+  const delivered = customer.deliveredDates.includes(localDateKey()) ? "<br>Đã giao hôm nay" : "";
+  return `<strong>${escapeHtml(customer.name)}</strong>${phone}${address}${delivered}`;
+}
+
+function fitDeliveryMap() {
+  if (!deliveryMap || !window.L) return;
+  const points = [];
+  if (currentPosition) points.push([currentPosition.latitude, currentPosition.longitude]);
+  for (const customer of customers) {
+    if (!customer.deliveryDates.includes(localDateKey())) continue;
+    const coordinates = getCustomerCoordinates(customer);
+    if (coordinates) points.push([coordinates.latitude, coordinates.longitude]);
+  }
+  if (points.length === 1) {
+    deliveryMap.setView(points[0], 15);
+  } else if (points.length > 1) {
+    deliveryMap.fitBounds(window.L.latLngBounds(points), { padding: [32, 32], maxZoom: 15 });
+  }
+}
+
+function updateDeliveryMap() {
+  const today = localDateKey();
+  const scheduledCustomers = customers.filter((customer) =>
+    customer.deliveryDates.includes(today) && getCustomerCoordinates(customer),
+  );
+  const hasCoordinates = Boolean(currentPosition || scheduledCustomers.length);
+  if (!hasCoordinates) {
+    elements.mapStatus.textContent = "Bật định vị để hiện vị trí của bạn. Khách sẽ hiện trên bản đồ sau khi lưu được vị trí giao hàng.";
+    elements.mapFitButton.disabled = true;
+    return;
+  }
+
+  elements.mapStatus.textContent = `${currentPosition ? "Vị trí của bạn đang được cập nhật" : "Đang hiển thị khách đã có vị trí"} · ${scheduledCustomers.length} khách hôm nay có tọa độ.`;
+  elements.mapFitButton.disabled = false;
+  loadMapLibrary().then((leaflet) => {
+    if (!deliveryMap) {
+      const initialPoint = currentPosition
+        ? [currentPosition.latitude, currentPosition.longitude]
+        : [getCustomerCoordinates(scheduledCustomers[0]).latitude, getCustomerCoordinates(scheduledCustomers[0]).longitude];
+      deliveryMap = leaflet.map(elements.map, { scrollWheelZoom: false }).setView(initialPoint, 14);
+      leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
+      }).addTo(deliveryMap);
+      window.setTimeout(() => deliveryMap.invalidateSize(), 0);
+    }
+
+    if (currentPosition) {
+      if (selfMapMarker) {
+        selfMapMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
+      } else {
+        selfMapMarker = leaflet.circleMarker(
+          [currentPosition.latitude, currentPosition.longitude],
+          { radius: 9, color: "#fff", weight: 3, fillColor: "#2675d8", fillOpacity: 1 },
+        ).addTo(deliveryMap).bindPopup("Vị trí hiện tại của bạn");
+      }
+    } else if (selfMapMarker) {
+      deliveryMap.removeLayer(selfMapMarker);
+      selfMapMarker = null;
+    }
+
+    const activeCustomerIds = new Set();
+    for (const customer of scheduledCustomers) {
+      const coordinates = getCustomerCoordinates(customer);
+      activeCustomerIds.add(customer.id);
+      const position = [coordinates.latitude, coordinates.longitude];
+      const existingMarker = customerMapMarkers.get(customer.id);
+      if (existingMarker) {
+        existingMarker
+          .setLatLng(position)
+          .setStyle({ fillColor: customer.deliveredDates.includes(today) ? "#6f8b70" : "#df704b" })
+          .setPopupContent(customerPopupContent(customer));
+      } else {
+        const delivered = customer.deliveredDates.includes(today);
+        const marker = leaflet.circleMarker(position, {
+          radius: 8,
+          color: "#fff",
+          weight: 2,
+          fillColor: delivered ? "#6f8b70" : "#df704b",
+          fillOpacity: 1,
+        }).addTo(deliveryMap).bindPopup(customerPopupContent(customer));
+        customerMapMarkers.set(customer.id, marker);
+      }
+    }
+    for (const [customerId, marker] of customerMapMarkers) {
+      if (!activeCustomerIds.has(customerId)) {
+        deliveryMap.removeLayer(marker);
+        customerMapMarkers.delete(customerId);
+      }
+    }
+
+    if (!hasSetInitialMapView) {
+      fitDeliveryMap();
+      hasSetInitialMapView = true;
+    }
+  }).catch((error) => {
+    console.error("Không thể hiển thị bản đồ:", error);
+    elements.mapStatus.textContent = "Không tải được bản đồ. Hãy kiểm tra kết nối Internet rồi tải lại ứng dụng.";
+    elements.mapFitButton.disabled = true;
+  });
 }
 
 function openCustomerDialog(phone = "") {
@@ -568,14 +770,61 @@ renderCustomers();
 renderAddressOptions();
 renderAreaOptions();
 renderSavedAddresses();
+renderShortcut();
 
 document.querySelector("#empty-add-button").addEventListener("click", () => openCustomerDialog(elements.search.value.trim()));
+elements.shortcutConfigureButton.addEventListener("click", () => {
+  elements.shortcutName.value = shortcut?.name || "";
+  elements.shortcutUrl.value = shortcut?.url || "";
+  elements.shortcutError.hidden = true;
+  elements.removeShortcutButton.hidden = !shortcut;
+  elements.shortcutDialog.showModal();
+  elements.shortcutName.focus();
+});
+elements.closeShortcutButton.addEventListener("click", () => elements.shortcutDialog.close());
+elements.shortcutForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = elements.shortcutName.value.trim();
+  const url = elements.shortcutUrl.value.trim();
+  if (!name || !isAllowedShortcutUrl(url)) {
+    elements.shortcutError.textContent = "Nhập tên và URL/deep link hợp lệ (ví dụ https://maps.google.com).";
+    elements.shortcutError.hidden = false;
+    return;
+  }
+
+  const nextShortcut = { name, url };
+  try {
+    localStorage.setItem(SHORTCUT_STORAGE_KEY, JSON.stringify(nextShortcut));
+  } catch (error) {
+    console.error("Không thể lưu shortcut:", error);
+    showToast("Không thể lưu shortcut. Bộ nhớ thiết bị có thể đã đầy.");
+    return;
+  }
+  shortcut = nextShortcut;
+  renderShortcut();
+  elements.shortcutDialog.close();
+  showToast("Đã lưu shortcut ứng dụng.");
+});
+elements.removeShortcutButton.addEventListener("click", () => {
+  try {
+    localStorage.removeItem(SHORTCUT_STORAGE_KEY);
+  } catch (error) {
+    console.error("Không thể xóa shortcut:", error);
+    showToast("Không thể xóa shortcut đã lưu.");
+    return;
+  }
+  shortcut = null;
+  renderShortcut();
+  elements.shortcutDialog.close();
+  showToast("Đã xóa shortcut ứng dụng.");
+});
 document.querySelector("#settings-button").addEventListener("click", () => elements.settingsDialog.showModal());
 document.querySelector("#close-settings-button").addEventListener("click", () => elements.settingsDialog.close());
 document.querySelector("#close-dialog-button").addEventListener("click", () => elements.dialog.close());
 document.querySelector("#cancel-dialog-button").addEventListener("click", () => elements.dialog.close());
 elements.search.addEventListener("input", renderCustomers);
 elements.areaFilter.addEventListener("change", renderCustomers);
+elements.mapFitButton.addEventListener("click", fitDeliveryMap);
 elements.allowLocationButton.addEventListener("click", requestLocationAndTrack);
 elements.locationGate.addEventListener("cancel", (event) => event.preventDefault());
 elements.exitAppButton.addEventListener("click", () => {
@@ -666,20 +915,36 @@ elements.list.addEventListener("click", (event) => {
   }
 });
 
+elements.list.addEventListener("input", (event) => {
+  const field = event.target.closest('textarea[data-action="save-directions-note"]');
+  if (!field) return;
+  const customer = customers.find((entry) => entry.id === field.dataset.id);
+  if (!customer) return;
+
+  customer.directionsNote = field.value.trim();
+  clearTimeout(directionsNoteSaveTimer);
+  directionsNoteSaveTimer = window.setTimeout(() => {
+    directionsNoteSaveTimer = null;
+    saveCustomers();
+  }, 300);
+});
+
 elements.list.addEventListener("change", (event) => {
   const field = event.target.closest('textarea[data-action="save-directions-note"]');
   if (!field) return;
   const customer = customers.find((entry) => entry.id === field.dataset.id);
   if (!customer) return;
 
-  const previousNote = customer.directionsNote;
-  customer.directionsNote = field.value.trim();
-  if (saveCustomers()) {
-    showToast("Đã lưu ghi chú chỉ đường.");
-  } else {
-    customer.directionsNote = previousNote;
-    field.value = previousNote;
-  }
+  clearTimeout(directionsNoteSaveTimer);
+  directionsNoteSaveTimer = null;
+  if (saveCustomers()) showToast("Đã lưu ghi chú chỉ đường.");
+});
+
+elements.list.addEventListener("focusout", (event) => {
+  if (!event.target.matches('textarea[data-action="save-directions-note"]')) return;
+  window.setTimeout(() => {
+    if (customerRenderDeferred) renderCustomers();
+  }, 0);
 });
 
 elements.form.addEventListener("submit", (event) => {
