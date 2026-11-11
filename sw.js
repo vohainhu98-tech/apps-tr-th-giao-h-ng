@@ -1,8 +1,10 @@
-const CACHE_NAME = "gan-day-pwa-v16";
-const APP_ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./icon.svg"];
+const CACHE_NAME = "gan-day-pwa-v34";
+const APP_ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_ASSETS)));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(
+    APP_ASSETS.map((asset) => new Request(asset, { cache: "reload" })),
+  )));
   self.skipWaiting();
 });
 
@@ -28,13 +30,4 @@ self.addEventListener("fetch", (event) => {
       return response;
     })),
   );
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-    const client = clients[0];
-    if (client) return client.focus();
-    return self.clients.openWindow("./");
-  }));
 });

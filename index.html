@@ -8,8 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Hoa Tiêu">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <link rel="manifest" href="./manifest.json">
-    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="icon" href="./icon-192.png" type="image/png" sizes="192x192">
     <link rel="stylesheet" href="./styles.css">
     <title>Hoa Tiêu cho Shipper</title>
   </head>
@@ -22,10 +23,6 @@
         </a>
         <div class="topbar-right">
           <span class="privacy-note"><span class="privacy-dot"></span>Dữ liệu chỉ lưu trên máy bạn</span>
-          <div class="shortcut-control">
-            <a class="shortcut-link" id="shortcut-link" target="_blank" rel="noopener noreferrer" hidden></a>
-            <button class="icon-button shortcut-configure-button" id="shortcut-configure-button" type="button" aria-label="Thêm shortcut ứng dụng" title="Thêm shortcut ứng dụng">＋</button>
-          </div>
           <button class="icon-button" id="settings-button" type="button" aria-label="Cài đặt" title="Cài đặt">⚙</button>
           <button class="icon-button" id="install-button" type="button" hidden aria-label="Cài ứng dụng" title="Cài ứng dụng">↓</button>
         </div>
@@ -40,18 +37,34 @@
             </div>
           </div>
 
-          <div class="route-controls">
-            <label class="search-control">
-              <span class="control-icon" aria-hidden="true">⌕</span>
-              <span class="sr-only">Tìm theo số điện thoại</span>
-              <input id="search-input" type="search" inputmode="tel" autocomplete="off" placeholder="Nhập số điện thoại khách hàng">
-            </label>
-            <label class="area-filter">
-              <span class="sr-only">Lọc theo khu vực</span>
-              <select id="area-filter" aria-label="Lọc theo khu vực">
-                <option value="">Tất cả khu vực</option>
-              </select>
-            </label>
+          <div class="route-sticky-controls">
+            <div class="route-controls">
+              <div class="search-box">
+                <label class="search-control">
+                  <span class="control-icon" aria-hidden="true">⌕</span>
+                  <span class="sr-only">Tìm theo số điện thoại</span>
+                  <input id="search-input" type="search" inputmode="tel" autocomplete="off" placeholder="Nhập số điện thoại khách hàng" aria-controls="search-results" aria-expanded="false">
+                </label>
+                <div class="search-results" id="search-results" role="region" aria-label="Khách hàng tìm thấy" hidden></div>
+              </div>
+              <label class="area-filter">
+                <span class="sr-only">Lọc theo khu vực</span>
+                <select id="area-filter" aria-label="Lọc theo khu vực">
+                  <option value="">Tất cả khu vực</option>
+                </select>
+              </label>
+            </div>
+            <div class="delivery-filters" role="group" aria-label="Lọc đơn hàng theo trạng thái">
+              <button class="delivery-filter" type="button" data-status-filter="delivered" aria-pressed="false">
+                <span>Đã giao</span><span class="delivery-filter-count" id="delivered-filter-count">0</span>
+              </button>
+              <button class="delivery-filter" type="button" data-status-filter="pending" aria-pressed="false">
+                <span>Chưa giao</span><span class="delivery-filter-count" id="pending-filter-count">0</span>
+              </button>
+              <button class="delivery-filter is-active" type="button" data-status-filter="all" aria-pressed="true">
+                <span>Tất cả</span><span class="delivery-filter-count" id="all-filter-count">0</span>
+              </button>
+            </div>
           </div>
 
           <div class="route-summary" id="route-summary" aria-live="polite"></div>
@@ -88,19 +101,27 @@
             <div class="nearby-content">
               <p class="eyebrow">NHẮC NHỞ KHI ĐẾN GẦN</p>
               <h2 id="nearby-title">Để điện thoại chỉ đường</h2>
-              <p id="tracking-status">Bật theo dõi để nhận nhắc nhở khi bạn cách khách trong lộ trình khoảng 500 m.</p>
+              <p id="tracking-status">Bật theo dõi để cập nhật khách gần nhất trong phạm vi 200 m và cảnh báo khi bạn rời xa khu vực giao hàng.</p>
               <p class="location-readout" id="location-readout"></p>
             </div>
             <div class="nearby-actions">
               <button class="dark-button" id="tracking-button" type="button">Bật theo dõi</button>
-              <button class="text-button notification-button" id="notification-button" type="button">Cho phép thông báo</button>
             </div>
           </aside>
 
-          <p class="footnote">Vị trí chỉ được dùng trên thiết bị của bạn để tính khoảng cách. Để nhận thông báo trên iPhone, hãy thêm ứng dụng vào Màn hình chính. Trình duyệt cần đang mở để theo dõi vị trí.</p>
+          <p class="footnote">Vị trí chỉ được dùng trên thiết bị của bạn để tính khoảng cách. Trình duyệt cần đang mở để cập nhật cảnh báo trong ứng dụng.</p>
         </section>
       </main>
     </div>
+
+    <aside class="nearest-delivery-alert" id="nearest-delivery-alert" role="status" aria-live="polite" hidden>
+      <span class="nearest-delivery-icon" aria-hidden="true">!</span>
+      <div class="nearest-delivery-copy">
+        <strong>Đơn cần giao gần bạn</strong>
+        <span id="nearest-delivery-message"></span>
+      </div>
+      <button class="nearest-delivery-action" id="nearest-delivery-action" type="button">Đã giao</button>
+    </aside>
 
     <nav class="bottom-tabs" role="tablist" aria-label="Chuyển màn hình">
       <button class="bottom-tab is-active" id="route-tab-button" type="button" role="tab" aria-selected="true" aria-controls="route-tab-panel" data-tab="route">
@@ -112,26 +133,6 @@
         <span>Bản đồ</span>
       </button>
     </nav>
-
-    <dialog class="customer-dialog shortcut-dialog" id="shortcut-dialog" aria-labelledby="shortcut-title">
-      <form id="shortcut-form">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">TRUY CẬP NHANH</p>
-            <h2 id="shortcut-title">Shortcut ứng dụng</h2>
-          </div>
-          <button class="icon-button close-button" id="close-shortcut-button" type="button" aria-label="Đóng">×</button>
-        </div>
-        <p class="settings-copy">Nhập tên và liên kết mở ứng dụng. Có thể dùng URL web (https://) hoặc deep link do ứng dụng cung cấp. App đích cần được cài trên điện thoại để mở trực tiếp.</p>
-        <label class="form-field">Tên hiển thị<input id="shortcut-name" name="name" maxlength="32" required placeholder="Ví dụ: Bản đồ"></label>
-        <label class="form-field">URL hoặc deep link<input id="shortcut-url" name="url" type="text" inputmode="url" autocomplete="url" required maxlength="500" placeholder="Ví dụ: https://maps.google.com"></label>
-        <p class="form-error" id="shortcut-error" role="alert" hidden></p>
-        <div class="dialog-actions">
-          <button class="secondary-button shortcut-remove-button" id="remove-shortcut-button" type="button" hidden>Xóa shortcut</button>
-          <button class="primary-button" type="submit">Lưu shortcut</button>
-        </div>
-      </form>
-    </dialog>
 
     <dialog class="location-gate-dialog" id="location-gate" aria-labelledby="location-gate-title">
       <div class="location-gate-content">
@@ -157,12 +158,12 @@
         </div>
         <label class="form-field">Tên khách hàng<input id="customer-name" name="name" autocomplete="name" required maxlength="80" placeholder="Ví dụ: Nguyễn Minh Anh"></label>
         <label class="form-field">Số điện thoại<input id="customer-phone" name="phone" type="tel" autocomplete="tel" required maxlength="24" placeholder="Ví dụ: 090 123 4567"></label>
-        <label class="form-field">Địa chỉ giao hàng
+        <label class="form-field">Khu vực giao hàng
           <select id="customer-address" name="address">
-            <option value="">Chọn địa chỉ có sẵn (không bắt buộc)</option>
+            <option value="">Chọn khu vực có sẵn (không bắt buộc)</option>
           </select>
         </label>
-        <p class="form-hint address-hint" id="address-hint">Quản lý địa chỉ có sẵn trong Cài đặt.</p>
+        <p class="form-hint address-hint" id="address-hint">Quản lý khu vực có sẵn trong Cài đặt.</p>
         <p class="form-error" id="form-error" role="alert" hidden></p>
         <div class="dialog-actions">
           <button class="secondary-button" id="cancel-dialog-button" type="button">Hủy</button>
@@ -171,20 +172,44 @@
       </form>
     </dialog>
 
+    <aside class="area-exit-alert" id="area-exit-alert" role="status" aria-live="polite" hidden>
+      <span class="area-exit-icon" aria-hidden="true">↗</span>
+      <div class="area-exit-copy">
+        <strong>Đã ra khỏi khu vực giao hàng</strong>
+        <span id="area-exit-message"></span>
+      </div>
+      <button class="area-exit-dismiss" id="area-exit-dismiss" type="button" aria-label="Ẩn thông báo">×</button>
+    </aside>
+
     <dialog class="customer-dialog settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
       <div>
         <div class="dialog-heading">
           <div>
-            <p class="eyebrow">TÙY CHỈNH ỨNG DỤNG</p>
             <h2 id="settings-title">Cài đặt</h2>
           </div>
           <button class="icon-button close-button" id="close-settings-button" type="button" aria-label="Đóng">×</button>
         </div>
+        <section class="settings-section" aria-labelledby="contact-import-title">
+          <h3 id="contact-import-title">Thêm khách từ danh bạ</h3>
+          <p class="settings-copy">Chọn một liên hệ để điền tên và số điện thoại vào form thêm khách. Chỉ liên hệ bạn chọn được dùng. Nếu trình duyệt không mở được danh bạ, hãy chọn tệp .vcf có một liên hệ.</p>
+          <button class="secondary-button contact-picker-button" id="contact-picker-button" type="button">Chọn từ danh bạ</button>
+          <input id="contact-file" type="file" accept=".vcf,text/vcard" hidden>
+          <p class="form-error" id="contact-import-error" role="alert" hidden></p>
+        </section>
+        <section class="settings-section" aria-labelledby="share-data-title">
+          <h3 id="share-data-title">Chia sẻ thông tin khách hàng</h3>
+          <p class="settings-copy">Gửi tệp dữ liệu khách hàng và khu vực giao hàng cho người dùng khác. Người nhận nhập tệp trong phần này để gộp dữ liệu; khu vực mới sẽ được tự thêm. Đây là bản chia sẻ tại thời điểm xuất, không tự đồng bộ các thay đổi sau đó. Tệp có thông tin cá nhân, chỉ gửi cho người bạn tin tưởng.</p>
+          <div class="shared-data-actions">
+            <button class="secondary-button" id="share-customer-data-button" type="button">Chia sẻ dữ liệu</button>
+            <button class="secondary-button" id="import-customer-data-button" type="button">Nhập dữ liệu được chia sẻ</button>
+          </div>
+          <input id="shared-data-file" type="file" accept=".json,application/json" hidden>
+          <p class="form-error" id="shared-data-error" role="alert" hidden></p>
+        </section>
         <section class="settings-section" aria-labelledby="addresses-title">
-          <h3 id="addresses-title">Địa chỉ giao hàng có sẵn</h3>
-          <p class="settings-copy">Thêm các địa chỉ bạn thường giao. Những địa chỉ này sẽ xuất hiện trong danh sách chọn khi thêm khách hàng.</p>
+          <h3 id="addresses-title">Quản Lý khu vực giao hàng</h3>
           <form class="address-entry-form" id="address-form">
-            <label class="sr-only" for="new-address">Địa chỉ mới</label>
+            <label class="sr-only" for="new-address">Khu vực mới</label>
             <input id="new-address" name="address" maxlength="180" required placeholder="Ví dụ: Chung cư ABC, Quận 1">
             <button class="primary-button" type="submit"><span aria-hidden="true">＋</span> Thêm</button>
           </form>
