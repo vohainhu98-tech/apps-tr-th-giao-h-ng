@@ -117,10 +117,15 @@
     <aside class="nearest-delivery-alert" id="nearest-delivery-alert" role="status" aria-live="polite" hidden>
       <span class="nearest-delivery-icon" aria-hidden="true">!</span>
       <div class="nearest-delivery-copy">
-        <strong>Đơn cần giao gần bạn</strong>
+        <strong id="nearest-delivery-title">Đơn cần giao gần bạn</strong>
         <span id="nearest-delivery-message"></span>
       </div>
-      <button class="nearest-delivery-action" id="nearest-delivery-action" type="button">Đã giao</button>
+      <button class="nearest-delivery-action" id="nearest-delivery-action" type="button" hidden>Đã giao</button>
+    </aside>
+
+    <aside class="delivery-reminder-alert" id="delivery-reminder-alert" role="status" aria-live="polite" hidden>
+      <span class="nearest-delivery-icon" aria-hidden="true">?</span>
+      <strong id="delivery-reminder-message"></strong>
     </aside>
 
     <nav class="bottom-tabs" role="tablist" aria-label="Chuyển màn hình">

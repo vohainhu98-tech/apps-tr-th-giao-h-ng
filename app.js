@@ -5,7 +5,7 @@ const AREA_OWNERS_STORAGE_KEY = "gan-day-area-owners-v1";
 const DEVICE_ID_STORAGE_KEY = "gan-day-device-id-v1";
 const LEGACY_OWNER_ID = "legacy-import";
 const AREA_TRACKING_METERS = 500;
-const CURRENT_DELIVERY_METERS = 200;
+const CURRENT_DELIVERY_METERS = 300;
 
 const elements = {
   todayLabel: document.querySelector("#today-label"),
@@ -49,8 +49,11 @@ const elements = {
   pendingFilterCount: document.querySelector("#pending-filter-count"),
   allFilterCount: document.querySelector("#all-filter-count"),
   nearestDeliveryAlert: document.querySelector("#nearest-delivery-alert"),
+  nearestDeliveryTitle: document.querySelector("#nearest-delivery-title"),
   nearestDeliveryMessage: document.querySelector("#nearest-delivery-message"),
   nearestDeliveryAction: document.querySelector("#nearest-delivery-action"),
+  deliveryReminderAlert: document.querySelector("#delivery-reminder-alert"),
+  deliveryReminderMessage: document.querySelector("#delivery-reminder-message"),
   areaExitAlert: document.querySelector("#area-exit-alert"),
   areaExitMessage: document.querySelector("#area-exit-message"),
   areaExitDismiss: document.querySelector("#area-exit-dismiss"),
@@ -69,6 +72,8 @@ let deviceId = loadDeviceId();
 let areaOwners = loadAreaOwners();
 let activeDate = localDateKey();
 let activeDeliveryFilter = "all";
+let nearestAlertCustomerId = null;
+let reminderCustomerId = null;
 let deliverySavingCustomerId = null;
 let watchId = null;
 let currentPosition = null;
@@ -638,7 +643,7 @@ function renderSearchResults(query, phoneDigits, matches, today) {
 
 function updateNearestDeliveryAlert() {
   const today = localDateKey();
-  const nearest = currentPosition
+  const closest = currentPosition
     ? customers
       .filter((customer) =>
         customer.deliveryDates.includes(today)
@@ -651,22 +656,51 @@ function updateNearestDeliveryAlert() {
       }))
       .sort((first, second) => first.meters - second.meters)[0]
     : null;
+  const nearest = closest && closest.meters <= CURRENT_DELIVERY_METERS ? closest : null;
+  const nearestId = nearest?.customer.id || null;
 
-  if (!nearest || nearest.meters > CURRENT_DELIVERY_METERS) {
-    elements.nearestDeliveryAlert.hidden = true;
-    document.body.classList.remove("has-nearest-alert");
-    elements.nearestDeliveryAction.removeAttribute("data-id");
-    return;
+  if (nearestId !== nearestAlertCustomerId) {
+    if (nearestAlertCustomerId) {
+      const previousCustomer = customers.find((customer) =>
+        customer.id === nearestAlertCustomerId
+        && customer.deliveryDates.includes(today)
+        && !customer.deliveredDates.includes(today),
+      );
+      reminderCustomerId = previousCustomer?.id || null;
+    }
+    nearestAlertCustomerId = nearestId;
   }
 
-  elements.nearestDeliveryMessage.textContent =
-    `${nearest.customer.name} · cách bạn ${formatDistance(nearest.meters)}.`;
-  elements.nearestDeliveryAction.dataset.id = nearest.customer.id;
-  const isSaving = deliverySavingCustomerId === nearest.customer.id;
-  elements.nearestDeliveryAction.disabled = isSaving;
-  elements.nearestDeliveryAction.textContent = isSaving ? "Đang lưu…" : "Đã giao";
-  elements.nearestDeliveryAlert.hidden = false;
-  document.body.classList.add("has-nearest-alert");
+  const reminderCustomer = customers.find((customer) =>
+    customer.id === reminderCustomerId
+    && customer.deliveryDates.includes(today)
+    && !customer.deliveredDates.includes(today),
+  );
+  if (!reminderCustomer) reminderCustomerId = null;
+
+  elements.nearestDeliveryAlert.hidden = !nearest;
+  document.body.classList.toggle("has-nearest-alert", Boolean(nearest));
+  if (nearest) {
+    elements.nearestDeliveryTitle.textContent =
+      `Đơn hôm nay cần giao cho ${nearest.customer.name}`;
+    elements.nearestDeliveryMessage.textContent = `Cách bạn ${formatDistance(nearest.meters)}.`;
+    elements.nearestDeliveryAction.dataset.id = nearest.customer.id;
+    elements.nearestDeliveryAction.hidden = false;
+    const isSaving = deliverySavingCustomerId === nearest.customer.id;
+    elements.nearestDeliveryAction.disabled = isSaving;
+    elements.nearestDeliveryAction.textContent = isSaving ? "Đang lưu…" : "Đã giao";
+  } else {
+    elements.nearestDeliveryAction.removeAttribute("data-id");
+    elements.nearestDeliveryAction.hidden = true;
+    elements.nearestDeliveryAction.disabled = false;
+  }
+
+  elements.deliveryReminderAlert.hidden = !reminderCustomer;
+  document.body.classList.toggle("has-delivery-reminder", Boolean(reminderCustomer));
+  if (reminderCustomer) {
+    elements.deliveryReminderMessage.textContent =
+      `Bạn đã giao hàng cho khách hàng ${reminderCustomer.name} chưa?`;
+  }
 }
 
 function updateAreaExitAlert() {
@@ -982,13 +1016,17 @@ function renderCustomers() {
   visible.sort((first, second) => {
     const firstDelivered = first.deliveredDates.includes(today);
     const secondDelivered = second.deliveredDates.includes(today);
-    if (firstDelivered !== secondDelivered) return Number(firstDelivered) - Number(secondDelivered);
-    if (firstDelivered || !currentPosition) return 0;
-    const firstCoordinates = getCustomerCoordinates(first);
-    const secondCoordinates = getCustomerCoordinates(second);
-    const firstDistance = firstCoordinates ? distanceMeters(currentPosition, firstCoordinates) : Infinity;
-    const secondDistance = secondCoordinates ? distanceMeters(currentPosition, secondCoordinates) : Infinity;
-    return firstDistance - secondDistance;
+    if (currentPosition) {
+      const firstCoordinates = getCustomerCoordinates(first);
+      const secondCoordinates = getCustomerCoordinates(second);
+      if (Boolean(firstCoordinates) !== Boolean(secondCoordinates)) return firstCoordinates ? -1 : 1;
+      if (firstCoordinates && secondCoordinates) {
+        const distanceDifference = distanceMeters(currentPosition, firstCoordinates)
+          - distanceMeters(currentPosition, secondCoordinates);
+        if (distanceDifference) return distanceDifference;
+      }
+    }
+    return Number(firstDelivered) - Number(secondDelivered);
   });
 
   elements.todayLabel.textContent = formatTodayLabel();
@@ -1297,6 +1335,8 @@ function refreshForNewDay() {
   const today = localDateKey();
   if (today === activeDate) return;
   activeDate = today;
+  nearestAlertCustomerId = null;
+  reminderCustomerId = null;
   elements.search.value = "";
   areaTrackedCustomerId = null;
   areaExitCustomerId = null;
@@ -1490,7 +1530,7 @@ function startTracking() {
           && getCustomerCoordinates(customer),
       ).length;
       updateTrackingStatus(withCoordinates
-        ? `Đang theo dõi · Cập nhật khách gần nhất trong phạm vi ${CURRENT_DELIVERY_METERS} m; báo khi rời xa khách đang theo dõi hơn ${AREA_TRACKING_METERS} m.`
+        ? `Đang theo dõi · Báo đơn cần giao trong phạm vi ${CURRENT_DELIVERY_METERS} m; báo khi rời xa khách đang theo dõi hơn ${AREA_TRACKING_METERS} m.`
         : "Đang theo dõi, nhưng khách trong lộ trình chưa có tọa độ để tính khoảng cách.");
     },
     (error) => {
