@@ -3,6 +3,7 @@ const ADDRESS_STORAGE_KEY = "gan-day-addresses-v1";
 const SHARED_ADDRESS_STORAGE_KEY = "gan-day-shared-addresses-v1";
 const AREA_OWNERS_STORAGE_KEY = "gan-day-area-owners-v1";
 const DEVICE_ID_STORAGE_KEY = "gan-day-device-id-v1";
+const FONT_SCALE_STORAGE_KEY = "gan-day-font-scale-v1";
 const LEGACY_OWNER_ID = "legacy-import";
 const AREA_TRACKING_METERS = 500;
 const CURRENT_DELIVERY_METERS = 300;
@@ -33,6 +34,7 @@ const elements = {
   addressSelect: document.querySelector("#customer-address"),
   addressHint: document.querySelector("#address-hint"),
   settingsDialog: document.querySelector("#settings-dialog"),
+  fontSizeSelect: document.querySelector("#font-size-select"),
   savedAddresses: document.querySelector("#saved-addresses"),
   addressForm: document.querySelector("#address-form"),
   customerManagementSearch: document.querySelector("#customer-management-search"),
@@ -89,12 +91,30 @@ let deliveryMap = null;
 let selfMapMarker = null;
 let customerMapMarkers = new Map();
 let hasSetInitialMapView = false;
+let fontScale = loadFontScale();
+applyFontScale(fontScale);
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function loadFontScale() {
+  try {
+    const saved = localStorage.getItem(FONT_SCALE_STORAGE_KEY);
+    return ["0.9", "1", "1.1"].includes(saved) ? saved : "1";
+  } catch (error) {
+    console.error("Không thể đọc cỡ chữ đã lưu:", error);
+    showToast("Không đọc được cỡ chữ đã lưu. Đang dùng cỡ chữ mặc định.");
+    return "1";
+  }
+}
+
+function applyFontScale(scale) {
+  document.documentElement.style.setProperty("--app-font-scale", scale);
+  elements.fontSizeSelect.value = scale;
 }
 
 function loadCustomers() {
@@ -1561,6 +1581,22 @@ document.querySelector("#settings-button").addEventListener("click", () => {
   elements.settingsDialog.showModal();
 });
 document.querySelector("#close-settings-button").addEventListener("click", () => elements.settingsDialog.close());
+elements.fontSizeSelect.addEventListener("change", () => {
+  const scale = elements.fontSizeSelect.value;
+  if (!["0.9", "1", "1.1"].includes(scale)) {
+    applyFontScale(fontScale);
+    return;
+  }
+  try {
+    localStorage.setItem(FONT_SCALE_STORAGE_KEY, scale);
+    fontScale = scale;
+    applyFontScale(fontScale);
+  } catch (error) {
+    console.error("Không thể lưu cỡ chữ:", error);
+    applyFontScale(fontScale);
+    showToast("Không thể lưu cỡ chữ trên thiết bị này.");
+  }
+});
 document.querySelector("#close-dialog-button").addEventListener("click", () => elements.dialog.close());
 document.querySelector("#cancel-dialog-button").addEventListener("click", () => elements.dialog.close());
 elements.contactPickerButton.addEventListener("click", () => void selectContact());
