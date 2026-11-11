@@ -159,8 +159,8 @@
         <label class="form-field">Tên khách hàng<input id="customer-name" name="name" autocomplete="name" required maxlength="80" placeholder="Ví dụ: Nguyễn Minh Anh"></label>
         <label class="form-field">Số điện thoại<input id="customer-phone" name="phone" type="tel" autocomplete="tel" required maxlength="24" placeholder="Ví dụ: 090 123 4567"></label>
         <label class="form-field">Khu vực giao hàng
-          <select id="customer-address" name="address">
-            <option value="">Chọn khu vực có sẵn (không bắt buộc)</option>
+          <select id="customer-address" name="address" required>
+            <option value="">Chọn khu vực giao hàng</option>
           </select>
         </label>
         <p class="form-hint address-hint" id="address-hint">Quản lý khu vực có sẵn trong Cài đặt.</p>
@@ -198,7 +198,7 @@
         </section>
         <section class="settings-section" aria-labelledby="share-data-title">
           <h3 id="share-data-title">Chia sẻ thông tin khách hàng</h3>
-          <p class="settings-copy">Gửi tệp dữ liệu khách hàng và khu vực giao hàng cho người dùng khác. Người nhận nhập tệp trong phần này để gộp dữ liệu; khu vực mới sẽ được tự thêm. Đây là bản chia sẻ tại thời điểm xuất, không tự đồng bộ các thay đổi sau đó. Tệp có thông tin cá nhân, chỉ gửi cho người bạn tin tưởng.</p>
+          <p class="settings-copy">Gửi tệp dữ liệu khách hàng và khu vực giao hàng cho người dùng khác. Người nhận nhập tệp trong phần này để gộp dữ liệu; khu vực sẽ được phân loại theo ID ứng dụng của người chia sẻ. Đây là bản chia sẻ tại thời điểm xuất, không tự đồng bộ các thay đổi sau đó. Tệp có thông tin cá nhân, chỉ gửi cho người bạn tin tưởng.</p>
           <div class="shared-data-actions">
             <button class="secondary-button" id="share-customer-data-button" type="button">Chia sẻ dữ liệu</button>
             <button class="secondary-button" id="import-customer-data-button" type="button">Nhập dữ liệu được chia sẻ</button>
@@ -206,8 +206,17 @@
           <input id="shared-data-file" type="file" accept=".json,application/json" hidden>
           <p class="form-error" id="shared-data-error" role="alert" hidden></p>
         </section>
+        <section class="settings-section" aria-labelledby="customer-management-title">
+          <h3 id="customer-management-title">Quản lý thông tin khách hàng</h3>
+          <p class="settings-copy">Tại đây chỉ có thể đổi khu vực giao hàng, xóa vị trí đã lưu hoặc xóa khách hàng.</p>
+          <label class="sr-only" for="customer-management-search">Tìm khách hàng cần quản lý</label>
+          <input class="customer-management-search" id="customer-management-search" type="search" placeholder="Tìm theo tên hoặc số điện thoại">
+          <p class="customer-management-count" id="customer-management-count" aria-live="polite" hidden></p>
+          <ul class="managed-customers" id="managed-customers" hidden></ul>
+        </section>
         <section class="settings-section" aria-labelledby="addresses-title">
           <h3 id="addresses-title">Quản Lý khu vực giao hàng</h3>
+          <p class="settings-copy">ID ứng dụng trên thiết bị này (tạo tự động, không phải số sê-ri phần cứng): <code id="local-device-id"></code></p>
           <form class="address-entry-form" id="address-form">
             <label class="sr-only" for="new-address">Khu vực mới</label>
             <input id="new-address" name="address" maxlength="180" required placeholder="Ví dụ: Chung cư ABC, Quận 1">

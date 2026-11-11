@@ -1,6 +1,9 @@
 const STORAGE_KEY = "gan-day-customers-v1";
 const ADDRESS_STORAGE_KEY = "gan-day-addresses-v1";
 const SHARED_ADDRESS_STORAGE_KEY = "gan-day-shared-addresses-v1";
+const AREA_OWNERS_STORAGE_KEY = "gan-day-area-owners-v1";
+const DEVICE_ID_STORAGE_KEY = "gan-day-device-id-v1";
+const LEGACY_OWNER_ID = "legacy-import";
 const AREA_TRACKING_METERS = 500;
 const CURRENT_DELIVERY_METERS = 200;
 
@@ -32,6 +35,9 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   savedAddresses: document.querySelector("#saved-addresses"),
   addressForm: document.querySelector("#address-form"),
+  customerManagementSearch: document.querySelector("#customer-management-search"),
+  customerManagementCount: document.querySelector("#customer-management-count"),
+  managedCustomers: document.querySelector("#managed-customers"),
   map: document.querySelector("#delivery-map"),
   mapStatus: document.querySelector("#map-status"),
   mapFitButton: document.querySelector("#map-fit-button"),
@@ -59,9 +65,11 @@ const elements = {
 
 let customers = loadCustomers();
 let savedAddresses = loadSavedAddresses();
-let sharedAddresses = loadSharedAddresses();
+let deviceId = loadDeviceId();
+let areaOwners = loadAreaOwners();
 let activeDate = localDateKey();
 let activeDeliveryFilter = "all";
+let deliverySavingCustomerId = null;
 let watchId = null;
 let currentPosition = null;
 let areaTrackedCustomerId = null;
@@ -132,26 +140,84 @@ function loadSavedAddresses() {
   }
 }
 
-function saveAddresses() {
-  const previousAddresses = localStorage.getItem(ADDRESS_STORAGE_KEY);
-  const previousSharedAddresses = localStorage.getItem(SHARED_ADDRESS_STORAGE_KEY);
+function loadDeviceId() {
   try {
-    localStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(savedAddresses));
-    localStorage.setItem(SHARED_ADDRESS_STORAGE_KEY, JSON.stringify(sharedAddresses));
-    return true;
+    const saved = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (saved && saved.length <= 100) return saved;
+    const generated = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, generated);
+    return generated;
   } catch (error) {
-    console.error("Không thể lưu danh sách địa chỉ:", error);
-    try {
-      if (previousAddresses === null) localStorage.removeItem(ADDRESS_STORAGE_KEY);
-      else localStorage.setItem(ADDRESS_STORAGE_KEY, previousAddresses);
-      if (previousSharedAddresses === null) localStorage.removeItem(SHARED_ADDRESS_STORAGE_KEY);
-      else localStorage.setItem(SHARED_ADDRESS_STORAGE_KEY, previousSharedAddresses);
-    } catch (rollbackError) {
-      console.error("Không thể khôi phục danh sách khu vực:", rollbackError);
-    }
-    showToast("Không thể lưu danh sách địa chỉ. Bộ nhớ thiết bị có thể đã đầy.");
-    return false;
+    console.error("Không thể tạo ID thiết bị:", error);
+    showToast("Không thể tạo ID phân loại khu vực trên thiết bị này.");
+    return `session-${crypto.randomUUID()}`;
   }
+}
+
+function areaKey(address) {
+  return address.trim().toLocaleLowerCase("vi");
+}
+
+function getCustomerAreaAssignments(customer, ownersByArea = areaOwners) {
+  const assignments = new Map();
+  const addAssignment = (address, ownerIds) => {
+    if (typeof address !== "string" || !address.trim()) return;
+    const normalizedAddress = address.trim();
+    const key = areaKey(normalizedAddress);
+    const normalizedOwnerIds = [...new Set(
+      (Array.isArray(ownerIds) ? ownerIds : []).filter((ownerId) => typeof ownerId === "string" && ownerId),
+    )];
+    for (const ownerId of normalizedOwnerIds.length ? normalizedOwnerIds : [deviceId]) {
+      const assignmentKey = JSON.stringify([ownerId, key]);
+      if (!assignments.has(assignmentKey)) assignments.set(assignmentKey, { address: normalizedAddress, ownerIds: [] });
+      assignments.get(assignmentKey).ownerIds.push(ownerId);
+    }
+  };
+
+  if (Array.isArray(customer.areaAssignments)) {
+    for (const assignment of customer.areaAssignments) {
+      if (!assignment || typeof assignment.address !== "string") continue;
+      const ownerIds = Array.isArray(assignment.ownerIds)
+        ? assignment.ownerIds
+        : ownersByArea[areaKey(assignment.address)] || [deviceId];
+      addAssignment(assignment.address, ownerIds);
+    }
+  }
+  if (typeof customer.address === "string" && customer.address.trim()
+    && ![...assignments.values()].some((assignment) => areaKey(assignment.address) === areaKey(customer.address))) {
+    addAssignment(customer.address, ownersByArea[areaKey(customer.address)] || [deviceId]);
+  }
+  return [...assignments.values()];
+}
+
+function loadAreaOwners() {
+  const savedAddressKeys = new Set(savedAddresses.map(areaKey));
+  const owners = Object.create(null);
+  try {
+    const saved = JSON.parse(localStorage.getItem(AREA_OWNERS_STORAGE_KEY) || "{}");
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) {
+      throw new Error("Thông tin chủ sở hữu khu vực không hợp lệ.");
+    }
+    for (const [key, ownerIds] of Object.entries(saved)) {
+      if (!Array.isArray(ownerIds) || ownerIds.some((ownerId) => typeof ownerId !== "string" || !ownerId)) {
+        throw new Error("ID chủ sở hữu khu vực không hợp lệ.");
+      }
+      if (savedAddressKeys.has(key)) owners[key] = [...new Set(ownerIds)];
+    }
+  } catch (error) {
+    console.error("Không thể đọc thông tin chủ sở hữu khu vực:", error);
+    showToast("Không đọc được ID chủ sở hữu khu vực đã lưu.");
+  }
+
+  const legacyShared = loadSharedAddresses();
+  for (const address of savedAddresses) {
+    const key = areaKey(address);
+    if (owners[key]?.length) continue;
+    owners[key] = legacyShared.some((shared) => areaKey(shared) === key)
+      ? [LEGACY_OWNER_ID]
+      : [deviceId];
+  }
+  return owners;
 }
 
 function loadSharedAddresses() {
@@ -160,12 +226,37 @@ function loadSharedAddresses() {
     if (!Array.isArray(saved) || saved.some((address) => typeof address !== "string")) {
       throw new Error("Danh sách khu vực được chia sẻ không hợp lệ.");
     }
-    const savedAddressKeys = new Set(savedAddresses.map((address) => address.toLocaleLowerCase("vi")));
-    return uniqueStrings(saved).filter((address) => savedAddressKeys.has(address.toLocaleLowerCase("vi")));
+    return uniqueStrings(saved);
   } catch (error) {
     console.error("Không thể đọc danh sách khu vực được chia sẻ:", error);
     showToast("Không đọc được phân loại khu vực đã lưu.");
     return [];
+  }
+}
+
+function saveAddresses() {
+  const previousAddresses = localStorage.getItem(ADDRESS_STORAGE_KEY);
+  const previousSharedAddresses = localStorage.getItem(SHARED_ADDRESS_STORAGE_KEY);
+  const previousOwners = localStorage.getItem(AREA_OWNERS_STORAGE_KEY);
+  try {
+    localStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(savedAddresses));
+    localStorage.setItem(AREA_OWNERS_STORAGE_KEY, JSON.stringify(areaOwners));
+    localStorage.removeItem(SHARED_ADDRESS_STORAGE_KEY);
+    return true;
+  } catch (error) {
+    console.error("Không thể lưu danh sách địa chỉ:", error);
+    try {
+      if (previousAddresses === null) localStorage.removeItem(ADDRESS_STORAGE_KEY);
+      else localStorage.setItem(ADDRESS_STORAGE_KEY, previousAddresses);
+      if (previousSharedAddresses === null) localStorage.removeItem(SHARED_ADDRESS_STORAGE_KEY);
+      else localStorage.setItem(SHARED_ADDRESS_STORAGE_KEY, previousSharedAddresses);
+      if (previousOwners === null) localStorage.removeItem(AREA_OWNERS_STORAGE_KEY);
+      else localStorage.setItem(AREA_OWNERS_STORAGE_KEY, previousOwners);
+    } catch (rollbackError) {
+      console.error("Không thể khôi phục danh sách khu vực:", rollbackError);
+    }
+    showToast("Không thể lưu danh sách địa chỉ. Bộ nhớ thiết bị có thể đã đầy.");
+    return false;
   }
 }
 
@@ -190,9 +281,17 @@ function createCustomerShareFile() {
   const bundle = {
     format: "hoa-tieu-customer-share",
     version: 1,
+    ownerId: deviceId,
     exportedAt: new Date().toISOString(),
-    customers: customers.map(({ alertedDates, ...customer }) => customer),
+    customers: customers.map(({ alertedDates, ...customer }) => ({
+      ...customer,
+      areaAssignments: getCustomerAreaAssignments(customer),
+    })),
     areas,
+    areaOwners: areas.map((area) => ({
+      area,
+      ownerIds: areaOwners[areaKey(area)]?.length ? areaOwners[areaKey(area)] : [deviceId],
+    })),
   };
   const date = localDateKey();
   return new File(
@@ -235,6 +334,9 @@ function parseCustomerShareFile(value) {
   if (bundle?.format !== "hoa-tieu-customer-share" || bundle.version !== 1) {
     throw new Error("Tệp không đúng định dạng chia sẻ của Hoa Tiêu.");
   }
+  if (bundle.ownerId != null && (typeof bundle.ownerId !== "string" || !bundle.ownerId.trim() || bundle.ownerId.length > 100)) {
+    throw new Error("ID người chia sẻ trong tệp không hợp lệ.");
+  }
   if (!Array.isArray(bundle.customers) || !Array.isArray(bundle.areas)) {
     throw new Error("Tệp chia sẻ thiếu danh sách khách hàng hoặc khu vực.");
   }
@@ -257,7 +359,8 @@ function parseCustomerShareFile(value) {
       || typeof customer.address !== "string"
       || typeof customer.directionsNote !== "string"
       || !Array.isArray(customer.deliveryDates)
-      || !Array.isArray(customer.deliveredDates)) {
+      || !Array.isArray(customer.deliveredDates)
+      || (customer.areaAssignments != null && !Array.isArray(customer.areaAssignments))) {
       throw new Error(`Thông tin khách hàng thứ ${index + 1} không hợp lệ.`);
     }
     const phone = customer.phone.trim();
@@ -281,6 +384,15 @@ function parseCustomerShareFile(value) {
         throw new Error(`Ngày giao của khách hàng thứ ${index + 1} không hợp lệ.`);
       }
     }
+    const areaAssignments = customer.areaAssignments || [];
+    if (areaAssignments.length > 2000 || areaAssignments.some((assignment) =>
+      !assignment || typeof assignment.address !== "string" || !assignment.address.trim()
+      || assignment.address.length > 180
+      || !Array.isArray(assignment.ownerIds) || assignment.ownerIds.length > 100
+      || assignment.ownerIds.some((ownerId) =>
+        typeof ownerId !== "string" || !ownerId.trim() || ownerId.length > 100))) {
+      throw new Error(`Khu vực của khách hàng thứ ${index + 1} không hợp lệ.`);
+    }
     return {
       id: customer.id.trim(),
       name: customer.name.trim(),
@@ -291,17 +403,66 @@ function parseCustomerShareFile(value) {
       deliveryDates: [...new Set(customer.deliveryDates)],
       deliveredDates: [...new Set(customer.deliveredDates)],
       directionsNote: customer.directionsNote,
+      areaAssignments: areaAssignments.map((assignment) => ({
+        address: assignment.address.trim(),
+        ownerIds: [...new Set(assignment.ownerIds)],
+      })),
     };
   });
   if (bundle.areas.some((area) => typeof area !== "string" || area.trim().length > 180)) {
     throw new Error("Danh sách khu vực trong tệp không hợp lệ.");
   }
+  const importedAreas = uniqueStrings([
+    ...bundle.areas,
+    ...importedCustomers.flatMap((customer) => [
+      customer.address,
+      ...customer.areaAssignments.map((assignment) => assignment.address),
+    ]),
+  ]);
+  const importedOwnerIds = new Map();
+  if (bundle.areaOwners != null) {
+    if (!Array.isArray(bundle.areaOwners) || bundle.areaOwners.length > 2000) {
+      throw new Error("Danh sách chủ sở hữu khu vực trong tệp không hợp lệ.");
+    }
+    for (const entry of bundle.areaOwners) {
+      if (!entry || typeof entry.area !== "string" || !entry.area.trim()
+        || !Array.isArray(entry.ownerIds) || entry.ownerIds.length > 100
+        || entry.ownerIds.some((ownerId) => typeof ownerId !== "string" || !ownerId.trim() || ownerId.length > 100)) {
+        throw new Error("Thông tin chủ sở hữu khu vực trong tệp không hợp lệ.");
+      }
+      const key = areaKey(entry.area);
+      importedOwnerIds.set(key, [...new Set([...(importedOwnerIds.get(key) || []), ...entry.ownerIds])]);
+    }
+  }
+  for (const customer of importedCustomers) {
+    const importedAssignments = customer.areaAssignments;
+    if (customer.address && !importedAssignments.some((assignment) =>
+      areaKey(assignment.address) === areaKey(customer.address))) {
+      importedAssignments.push({
+        address: customer.address,
+        ownerIds: [bundle.ownerId || LEGACY_OWNER_ID],
+      });
+    }
+    customer.areaAssignments = uniqueStrings(importedAssignments.map((assignment) => assignment.address))
+      .map((address) => {
+        const assignmentsForArea = importedAssignments.filter((assignment) => areaKey(assignment.address) === areaKey(address));
+        const assignmentOwnerIds = assignmentsForArea.flatMap((assignment) => assignment.ownerIds);
+        const ownerIds = [...new Set(assignmentOwnerIds.length
+          ? assignmentOwnerIds
+          : importedOwnerIds.get(areaKey(address)) || [])];
+        return {
+          address,
+          ownerIds: ownerIds.length ? ownerIds : [bundle.ownerId || LEGACY_OWNER_ID],
+        };
+      });
+  }
   return {
     customers: importedCustomers,
-    areas: uniqueStrings([
-      ...bundle.areas,
-      ...importedCustomers.map((customer) => customer.address),
-    ]),
+    areas: importedAreas,
+    areaOwners: importedAreas.map((area) => ({
+      area,
+      ownerIds: importedOwnerIds.get(areaKey(area)) || [bundle.ownerId || LEGACY_OWNER_ID],
+    })),
   };
 }
 
@@ -315,6 +476,13 @@ function mergeImportedCustomer(existing, imported) {
   if (mergedNotes.length > 2000) {
     throw new Error(`Ghi chú chỉ đường của khách "${existing.name}" quá dài để gộp an toàn.`);
   }
+  const areaAssignments = getCustomerAreaAssignments({
+    address: existing.address || imported.address,
+    areaAssignments: [
+      ...getCustomerAreaAssignments(existing),
+      ...getCustomerAreaAssignments(imported),
+    ],
+  });
   return {
     ...existing,
     name: existing.name || imported.name,
@@ -325,17 +493,20 @@ function mergeImportedCustomer(existing, imported) {
     deliveryDates: [...new Set([...existing.deliveryDates, ...imported.deliveryDates])],
     deliveredDates: [...new Set([...existing.deliveredDates, ...imported.deliveredDates])],
     directionsNote: mergedNotes,
+    areaAssignments,
   };
 }
 
-function persistImportedData(nextCustomers, nextAddresses, nextSharedAddresses) {
+function persistImportedData(nextCustomers, nextAddresses, nextAreaOwners) {
   const previousCustomers = localStorage.getItem(STORAGE_KEY);
   const previousAddresses = localStorage.getItem(ADDRESS_STORAGE_KEY);
   const previousSharedAddresses = localStorage.getItem(SHARED_ADDRESS_STORAGE_KEY);
+  const previousAreaOwners = localStorage.getItem(AREA_OWNERS_STORAGE_KEY);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextCustomers));
     localStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(nextAddresses));
-    localStorage.setItem(SHARED_ADDRESS_STORAGE_KEY, JSON.stringify(nextSharedAddresses));
+    localStorage.setItem(AREA_OWNERS_STORAGE_KEY, JSON.stringify(nextAreaOwners));
+    localStorage.removeItem(SHARED_ADDRESS_STORAGE_KEY);
     return true;
   } catch (error) {
     console.error("Không thể lưu dữ liệu được chia sẻ:", error);
@@ -346,6 +517,8 @@ function persistImportedData(nextCustomers, nextAddresses, nextSharedAddresses) 
       else localStorage.setItem(ADDRESS_STORAGE_KEY, previousAddresses);
       if (previousSharedAddresses === null) localStorage.removeItem(SHARED_ADDRESS_STORAGE_KEY);
       else localStorage.setItem(SHARED_ADDRESS_STORAGE_KEY, previousSharedAddresses);
+      if (previousAreaOwners === null) localStorage.removeItem(AREA_OWNERS_STORAGE_KEY);
+      else localStorage.setItem(AREA_OWNERS_STORAGE_KEY, previousAreaOwners);
     } catch (rollbackError) {
       console.error("Không thể khôi phục dữ liệu sau khi nhập thất bại:", rollbackError);
     }
@@ -385,11 +558,14 @@ async function importSharedCustomerData() {
       }
     }
     const nextAddresses = uniqueStrings([...savedAddresses, ...imported.areas]);
-    const savedAddressKeys = new Set(savedAddresses.map((address) => address.toLocaleLowerCase("vi")));
-    const nextSharedAddresses = uniqueStrings([
-      ...sharedAddresses,
-      ...imported.areas.filter((address) => !savedAddressKeys.has(address.toLocaleLowerCase("vi"))),
-    ]);
+    const nextAreaOwners = Object.create(null);
+    for (const [key, ownerIds] of Object.entries(areaOwners)) {
+      nextAreaOwners[key] = [...ownerIds];
+    }
+    for (const { area, ownerIds } of imported.areaOwners) {
+      const key = areaKey(area);
+      nextAreaOwners[key] = [...new Set([...(nextAreaOwners[key] || []), ...ownerIds])];
+    }
     const addedAreas = nextAddresses.length - savedAddresses.length;
     if (!window.confirm(
       `Tệp có ${imported.customers.length} khách và ${imported.areas.length} khu vực.\n`
@@ -397,12 +573,13 @@ async function importSharedCustomerData() {
       + `và thêm ${addedAreas} khu vực. Thông tin đã có trên thiết bị được ưu tiên nếu bị khác nhau.\n\n`
       + "Bạn có muốn tiếp tục nhập không?",
     )) return;
-    if (!persistImportedData(nextCustomers, nextAddresses, nextSharedAddresses)) return;
+    if (!persistImportedData(nextCustomers, nextAddresses, nextAreaOwners)) return;
 
     customers = nextCustomers;
     savedAddresses = nextAddresses;
-    sharedAddresses = nextSharedAddresses;
+    areaOwners = nextAreaOwners;
     renderSavedAddresses();
+    renderCustomerManagement();
     renderAddressOptions();
     renderAreaOptions();
     renderCustomers();
@@ -442,10 +619,15 @@ function renderSearchResults(query, phoneDigits, matches, today) {
   elements.searchResults.innerHTML = matches.map((customer) => {
     const isScheduled = customer.deliveryDates.includes(today);
     const isDelivered = customer.deliveredDates.includes(today);
+    const areas = getCustomerAreaAssignments(customer)
+      .map((assignment) => assignment.address)
+      .filter((address, index, addresses) =>
+        addresses.findIndex((entry) => areaKey(entry) === areaKey(address)) === index,
+      );
     return `<article class="search-result-item">
       <div class="search-result-info">
         <strong>${escapeHtml(customer.name)}</strong>
-        <span>${escapeHtml(customer.phone || "")}${customer.address ? ` · ${escapeHtml(customer.address)}` : ""}</span>
+        <span>${escapeHtml(customer.phone || "")}${areas.length ? ` · ${escapeHtml(areas.join(", "))}` : ""}</span>
       </div>
       ${isScheduled
         ? `<span class="search-result-status">${isDelivered ? "Đã giao hôm nay" : "Đã thêm hôm nay"}</span>`
@@ -480,6 +662,9 @@ function updateNearestDeliveryAlert() {
   elements.nearestDeliveryMessage.textContent =
     `${nearest.customer.name} · cách bạn ${formatDistance(nearest.meters)}.`;
   elements.nearestDeliveryAction.dataset.id = nearest.customer.id;
+  const isSaving = deliverySavingCustomerId === nearest.customer.id;
+  elements.nearestDeliveryAction.disabled = isSaving;
+  elements.nearestDeliveryAction.textContent = isSaving ? "Đang lưu…" : "Đã giao";
   elements.nearestDeliveryAlert.hidden = false;
   document.body.classList.add("has-nearest-alert");
 }
@@ -567,54 +752,113 @@ function showToast(message) {
 }
 
 function getAddressGroups(selectedAddress = "") {
-  const sharedAddressKeys = new Set(sharedAddresses.map((address) => address.toLocaleLowerCase("vi")));
-  const ownAddresses = savedAddresses.filter((address) =>
-    !sharedAddressKeys.has(address.toLocaleLowerCase("vi")),
-  );
-  const otherAddresses = savedAddresses.filter((address) =>
-    sharedAddressKeys.has(address.toLocaleLowerCase("vi")),
-  );
-  if (selectedAddress && !savedAddresses.includes(selectedAddress)) ownAddresses.push(selectedAddress);
-  return [
-    { label: "Người dùng (của bạn)", addresses: ownAddresses },
-    { label: "Người dùng khác", addresses: otherAddresses },
-  ];
+  const groupedAddresses = new Map();
+  const selected = parseAreaSelection(selectedAddress);
+  const selectedName = selected
+    ? savedAddresses.find((address) => areaKey(address) === selected.key) || selected.key
+    : selectedAddress;
+  for (const address of savedAddresses) {
+    const ownerIds = areaOwners[areaKey(address)]?.length ? areaOwners[areaKey(address)] : [deviceId];
+    for (const ownerId of ownerIds) {
+      if (!groupedAddresses.has(ownerId)) groupedAddresses.set(ownerId, []);
+      if (!groupedAddresses.get(ownerId).some((entry) => areaKey(entry) === areaKey(address))) {
+        groupedAddresses.get(ownerId).push(address);
+      }
+    }
+  }
+  if (selectedName && !savedAddresses.some((address) => areaKey(address) === areaKey(selectedName))) {
+    groupedAddresses.set(deviceId, [...(groupedAddresses.get(deviceId) || []), selectedName]);
+  }
+  return [...groupedAddresses.entries()]
+    .map(([ownerId, addresses]) => ({
+      ownerId,
+      label: ownerId === deviceId
+        ? `Của bạn · ID ${ownerId.slice(0, 8)}`
+        : ownerId === LEGACY_OWNER_ID
+          ? "Người dùng khác · ID chưa có"
+          : `Người dùng khác · ID ${ownerId.slice(0, 8)}`,
+      addresses,
+    }))
+    .sort((first, second) => {
+      if (first.ownerId === deviceId) return -1;
+      if (second.ownerId === deviceId) return 1;
+      return first.label.localeCompare(second.label, "vi");
+    });
+}
+
+function areaSelectionValue(ownerId, address) {
+  return JSON.stringify([ownerId, areaKey(address)]);
+}
+
+function parseAreaSelection(value) {
+  if (!value) return null;
+  try {
+    const [ownerId, key] = JSON.parse(value);
+    if (typeof ownerId === "string" && typeof key === "string") return { ownerId, key };
+  } catch {
+    const address = savedAddresses.find((entry) => areaKey(entry) === areaKey(value));
+    if (address) return { ownerId: null, key: areaKey(address) };
+  }
+  return null;
 }
 
 function renderAddressOptions(selectedAddress = "") {
-  const options = ['<option value="">Chọn khu vực có sẵn (không bắt buộc)</option>'];
+  const options = ['<option value="">Chọn khu vực giao hàng</option>'];
+  const selected = parseAreaSelection(selectedAddress);
+  const selectedKey = selected?.key;
   for (const group of getAddressGroups(selectedAddress)) {
     if (!group.addresses.length) continue;
     options.push(`<optgroup label="${group.label}">`);
     for (const address of group.addresses) {
       const isSaved = savedAddresses.includes(address);
-      const suffix = selectedAddress === address && !isSaved ? " (đã lưu)" : "";
-      options.push(`<option value="${escapeHtml(address)}">${escapeHtml(address)}${suffix}</option>`);
+      const suffix = selectedKey === areaKey(address) && !isSaved ? " (đã lưu)" : "";
+      const value = areaSelectionValue(group.ownerId, address);
+      options.push(`<option value="${escapeHtml(value)}">${escapeHtml(address)}${suffix}</option>`);
     }
     options.push("</optgroup>");
   }
   elements.addressSelect.innerHTML = options.join("");
-  elements.addressSelect.value = selectedAddress;
+  if (selected) {
+    elements.addressSelect.value = areaSelectionValue(
+      selected.ownerId || deviceId,
+      savedAddresses.find((address) => areaKey(address) === selected.key) || selected.key,
+    );
+  } else {
+    elements.addressSelect.value = "";
+  }
   elements.addressHint.textContent = savedAddresses.length
     ? "Có thể thêm hoặc sửa danh sách khu vực trong Cài đặt."
     : "Chưa có khu vực. Hãy thêm trong Cài đặt để chọn tại đây.";
 }
 
 function renderAreaOptions(selectedArea = elements.areaFilter.value) {
+  const previousSelection = parseAreaSelection(selectedArea);
   const options = ['<option value="">Tất cả khu vực</option>'];
   for (const group of getAddressGroups()) {
     if (!group.addresses.length) continue;
     options.push(`<optgroup label="${group.label}">`);
     for (const address of group.addresses) {
-      options.push(`<option value="${escapeHtml(address)}">${escapeHtml(address)}</option>`);
+      const value = areaSelectionValue(group.ownerId, address);
+      options.push(`<option value="${escapeHtml(value)}">${escapeHtml(address)}</option>`);
     }
     options.push("</optgroup>");
   }
   elements.areaFilter.innerHTML = options.join("");
-  elements.areaFilter.value = savedAddresses.includes(selectedArea) ? selectedArea : "";
+  if (previousSelection) {
+    const matchingAddress = savedAddresses.find((address) => areaKey(address) === previousSelection.key);
+    const matchingOwner = previousSelection.ownerId
+      || areaOwners[previousSelection.key]?.[0]
+      || deviceId;
+    elements.areaFilter.value = matchingAddress
+      ? areaSelectionValue(matchingOwner, matchingAddress)
+      : "";
+  } else {
+    elements.areaFilter.value = "";
+  }
 }
 
 function renderSavedAddresses() {
+  document.querySelector("#local-device-id").textContent = deviceId.slice(0, 8);
   const groups = getAddressGroups().filter((group) => group.addresses.length);
   elements.savedAddresses.innerHTML = groups.length
     ? groups.map((group) => `<li class="saved-address-group">${group.label}</li>${group.addresses.map((address) => {
@@ -625,6 +869,71 @@ function renderSavedAddresses() {
       </li>`;
     }).join("")}`).join("")
     : '<li class="address-empty">Chưa có khu vực. Thêm khu vực thường giao ở phía trên.</li>';
+}
+
+function renderCustomerManagement() {
+  const query = elements.customerManagementSearch.value.trim().toLocaleLowerCase("vi");
+  if (!query) {
+    elements.customerManagementCount.hidden = true;
+    elements.managedCustomers.hidden = true;
+    elements.customerManagementCount.textContent = "";
+    elements.managedCustomers.innerHTML = "";
+    return;
+  }
+
+  const queryDigits = normalizePhone(query);
+  const matches = customers.filter((customer) => {
+    const nameMatches = customer.name.toLocaleLowerCase("vi").includes(query);
+    const phoneMatches = queryDigits && normalizePhone(customer.phone).includes(queryDigits);
+    return nameMatches || phoneMatches;
+  });
+  const visibleCustomers = matches.slice(0, 50);
+  elements.customerManagementCount.hidden = false;
+  elements.managedCustomers.hidden = false;
+  elements.customerManagementCount.textContent = matches.length > visibleCustomers.length
+    ? `Hiển thị ${visibleCustomers.length} trong ${matches.length} khách phù hợp. Hãy tìm cụ thể hơn để xem phần còn lại.`
+    : `${matches.length} khách hàng`;
+  elements.managedCustomers.innerHTML = visibleCustomers.length
+    ? visibleCustomers.map((customer) => {
+      const options = ['<option value="">Chọn khu vực giao hàng</option>'];
+      const customerAssignments = getCustomerAreaAssignments(customer);
+      const primaryOwnerIds = customerAssignments
+        .filter((assignment) => areaKey(assignment.address) === areaKey(customer.address || ""))
+        .flatMap((assignment) => assignment.ownerIds);
+      for (const group of getAddressGroups(customer.address)) {
+        if (!group.addresses.length) continue;
+        options.push(`<optgroup label="${group.label}">`);
+        for (const address of group.addresses) {
+          const suffix = !savedAddresses.some((saved) => areaKey(saved) === areaKey(address))
+            ? " (không có trong danh sách)"
+            : "";
+          const value = areaSelectionValue(group.ownerId, address);
+          const selected = areaKey(customer.address || "") === areaKey(address)
+            && primaryOwnerIds.includes(group.ownerId);
+          options.push(`<option value="${escapeHtml(value)}"${selected ? " selected" : ""}>${escapeHtml(address)}${suffix}</option>`);
+        }
+        options.push("</optgroup>");
+      }
+      const assignedAreas = customerAssignments.map((assignment) =>
+        `${assignment.address} · ${assignment.ownerIds.map((ownerId) => ownerId.slice(0, 8)).join(", ")}`,
+      );
+      const coordinates = getCustomerCoordinates(customer);
+      return `<li class="managed-customer">
+        <div class="managed-customer-heading">
+          <strong>${escapeHtml(customer.name)}</strong>
+          <span>${escapeHtml(customer.phone)}</span>
+        </div>
+        ${assignedAreas.length ? `<p class="managed-customer-assignments">Các khu vực đã liên kết: ${escapeHtml(assignedAreas.join(" · "))}</p>` : ""}
+        <label class="managed-customer-area">Khu vực giao hàng
+          <select required data-action="change-customer-address" data-id="${escapeHtml(customer.id)}">${options.join("")}</select>
+        </label>
+        <div class="managed-customer-actions">
+          <button class="secondary-button" type="button" data-action="clear-customer-location" data-id="${escapeHtml(customer.id)}"${coordinates ? "" : " disabled"}>Xóa vị trí</button>
+          <button class="danger-button" type="button" data-action="delete-customer" data-id="${escapeHtml(customer.id)}">Xóa khách hàng</button>
+        </div>
+      </li>`;
+    }).join("")
+    : '<li class="address-empty">Không tìm thấy khách hàng.</li>';
 }
 
 function renderCustomers() {
@@ -644,8 +953,14 @@ function renderCustomers() {
   const query = elements.search.value.trim();
   const phoneDigits = normalizePhone(query);
   const selectedArea = elements.areaFilter.value;
-  const inSelectedArea = (customer) => !selectedArea
-    || (customer.address || "").toLocaleLowerCase("vi") === selectedArea.toLocaleLowerCase("vi");
+  const selectedAreaAssignment = parseAreaSelection(selectedArea);
+  const inSelectedArea = (customer) => !selectedAreaAssignment
+    || getCustomerAreaAssignments(customer).some((assignment) =>
+      areaKey(assignment.address) === selectedAreaAssignment.key
+      && assignment.ownerIds.some((ownerId) =>
+        selectedAreaAssignment.ownerId === null || ownerId === selectedAreaAssignment.ownerId,
+      ),
+    );
   const scheduled = customers.filter((customer) =>
     customer.deliveryDates.includes(today) && inSelectedArea(customer),
   );
@@ -709,6 +1024,9 @@ function renderCustomers() {
         ? `https://maps.google.com/?q=${encodeURIComponent(customer.address)}`
         : "";
     const phone = customer.phone ? customer.phone.replace(/[^\d+]/g, "") : "";
+    const assignedAreas = getCustomerAreaAssignments(customer).map((assignment) =>
+      `${assignment.address} · ID ${assignment.ownerIds.map((ownerId) => ownerId.slice(0, 8)).join(", ")}`,
+    );
 
     return `<article class="customer-card">
       <div class="customer-avatar" aria-hidden="true">${escapeHtml((customer.name || "?").trim().charAt(0).toLocaleUpperCase("vi"))}</div>
@@ -716,7 +1034,7 @@ function renderCustomers() {
         <p class="customer-name">${escapeHtml(customer.name)}</p>
         <div class="customer-meta">
           ${phone ? `<a href="tel:${escapeHtml(phone)}">${escapeHtml(customer.phone)}</a>` : ""}
-          ${customer.address ? `<span>${escapeHtml(customer.address)}</span>` : ""}
+          ${assignedAreas.map((area) => `<span>${escapeHtml(area)}</span>`).join("")}
           ${mapUrl ? `<a href="${mapUrl}" target="_blank" rel="noopener noreferrer">Mở bản đồ ↗</a>` : ""}
         </div>
         ${distance}
@@ -1020,10 +1338,12 @@ function getLocationErrorMessage(error) {
 
 async function markDelivered(customer, button) {
   const today = localDateKey();
-  if (customer.deliveredDates.includes(today)) return;
+  if (customer.deliveredDates.includes(today) || deliverySavingCustomerId) return;
 
+  deliverySavingCustomerId = customer.id;
   button.disabled = true;
   button.textContent = getCustomerCoordinates(customer) ? "Đang lưu…" : "Đang lấy vị trí…";
+  updateNearestDeliveryAlert();
   let coordinates = null;
   if (!getCustomerCoordinates(customer)) {
     try {
@@ -1036,6 +1356,7 @@ async function markDelivered(customer, button) {
       const message = getLocationErrorMessage(error);
       console.error("Không thể lưu vị trí giao hàng:", error);
       if (!window.confirm(`${message} Bạn vẫn muốn đánh dấu đơn hàng là đã giao mà không lưu vị trí?`)) {
+        deliverySavingCustomerId = null;
         button.disabled = false;
         renderCustomers();
         return;
@@ -1054,10 +1375,12 @@ async function markDelivered(customer, button) {
     customer.deliveredDates = customer.deliveredDates.filter((date) => date !== today);
     customer.latitude = previousCoordinates.latitude;
     customer.longitude = previousCoordinates.longitude;
+    deliverySavingCustomerId = null;
     button.disabled = false;
     renderCustomers();
     return;
   }
+  deliverySavingCustomerId = null;
   renderCustomers();
   showToast(coordinates
     ? "Đã đánh dấu đã giao và lưu vị trí giao hàng."
@@ -1188,11 +1511,13 @@ renderCustomers();
 renderAddressOptions();
 renderAreaOptions();
 renderSavedAddresses();
+renderCustomerManagement();
 
 document.querySelector("#empty-add-button").addEventListener("click", () => openCustomerDialog(elements.search.value.trim()));
 document.querySelector("#settings-button").addEventListener("click", () => {
   elements.contactImportError.hidden = true;
   elements.sharedDataError.hidden = true;
+  renderCustomerManagement();
   elements.settingsDialog.showModal();
 });
 document.querySelector("#close-settings-button").addEventListener("click", () => elements.settingsDialog.close());
@@ -1306,13 +1631,16 @@ elements.addressForm.addEventListener("submit", (event) => {
   }
 
   savedAddresses.push(address);
+  areaOwners[areaKey(address)] = [deviceId];
   if (!saveAddresses()) {
     savedAddresses.pop();
+    delete areaOwners[areaKey(address)];
     return;
   }
   error.hidden = true;
   input.value = "";
   renderSavedAddresses();
+  renderCustomerManagement();
   renderAddressOptions(address);
   renderAreaOptions();
   showToast("Đã thêm địa chỉ vào danh sách.");
@@ -1326,20 +1654,97 @@ elements.savedAddresses.addEventListener("click", (event) => {
   if (address === undefined) return;
   if (!window.confirm(`Xóa "${address}" khỏi danh sách khu vực? Khu vực đã lưu trên khách hàng sẽ không bị thay đổi.`)) return;
 
-  const sharedIndex = sharedAddresses.findIndex((entry) =>
-    entry.toLocaleLowerCase("vi") === address.toLocaleLowerCase("vi"),
-  );
+  const key = areaKey(address);
+  const previousOwners = areaOwners[key];
   savedAddresses.splice(index, 1);
-  if (sharedIndex >= 0) sharedAddresses.splice(sharedIndex, 1);
+  delete areaOwners[key];
   if (!saveAddresses()) {
     savedAddresses.splice(index, 0, address);
-    if (sharedIndex >= 0) sharedAddresses.splice(sharedIndex, 0, address);
+    if (previousOwners) areaOwners[key] = previousOwners;
     return;
   }
   renderSavedAddresses();
+  renderCustomerManagement();
   renderAddressOptions(elements.addressSelect.value === address ? "" : elements.addressSelect.value);
   renderAreaOptions(elements.areaFilter.value);
   showToast("Đã xóa địa chỉ khỏi danh sách.");
+});
+
+elements.customerManagementSearch.addEventListener("input", renderCustomerManagement);
+elements.managedCustomers.addEventListener("change", (event) => {
+  const select = event.target.closest('select[data-action="change-customer-address"]');
+  if (!select) return;
+  const customer = customers.find((entry) => entry.id === select.dataset.id);
+  if (!customer) return;
+
+  const selection = parseAreaSelection(select.value);
+  const address = selection
+    ? savedAddresses.find((saved) => areaKey(saved) === selection.key) || ""
+    : "";
+  if (!selection || !address) {
+    showToast("Khu vực giao hàng là bắt buộc. Hãy chọn một khu vực.");
+    renderCustomerManagement();
+    return;
+  }
+  const previousAddress = customer.address;
+  const previousAssignments = customer.areaAssignments;
+  const assignments = getCustomerAreaAssignments(customer).map((assignment) => ({
+    address: assignment.address,
+    ownerIds: assignment.ownerIds.filter((ownerId) =>
+      !(areaKey(assignment.address) === areaKey(previousAddress || "") && ownerId === deviceId),
+    ),
+  })).filter((assignment) => assignment.ownerIds.length);
+  if (selection && address) {
+    assignments.push({ address, ownerIds: [selection.ownerId] });
+  }
+  customer.address = address;
+  customer.areaAssignments = getCustomerAreaAssignments({ address, areaAssignments: assignments });
+  if (saveCustomers()) {
+    renderCustomers();
+    renderCustomerManagement();
+    showToast("Đã cập nhật khu vực giao hàng của khách.");
+  } else {
+    customer.address = previousAddress;
+    customer.areaAssignments = previousAssignments;
+    renderCustomerManagement();
+  }
+});
+
+elements.managedCustomers.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const index = customers.findIndex((entry) => entry.id === button.dataset.id);
+  if (index < 0) return;
+  const customer = customers[index];
+
+  if (button.dataset.action === "clear-customer-location") {
+    if (!getCustomerCoordinates(customer)) return;
+    if (!window.confirm(`Xóa vị trí đã lưu của khách "${customer.name}"?`)) return;
+    const previousLatitude = customer.latitude;
+    const previousLongitude = customer.longitude;
+    customer.latitude = null;
+    customer.longitude = null;
+    if (saveCustomers()) {
+      renderCustomers();
+      renderCustomerManagement();
+      showToast("Đã xóa vị trí của khách.");
+    } else {
+      customer.latitude = previousLatitude;
+      customer.longitude = previousLongitude;
+    }
+    return;
+  }
+
+  if (button.dataset.action !== "delete-customer") return;
+  if (!window.confirm(`Xóa toàn bộ thông tin khách "${customer.name}"? Thao tác này không thể hoàn tác.`)) return;
+  customers.splice(index, 1);
+  if (saveCustomers()) {
+    renderCustomers();
+    renderCustomerManagement();
+    showToast("Đã xóa khách hàng.");
+  } else {
+    customers.splice(index, 0, customer);
+  }
 });
 
 elements.list.addEventListener("click", (event) => {
@@ -1425,11 +1830,23 @@ elements.form.addEventListener("submit", (event) => {
     error.hidden = false;
     return;
   }
+  const selectedArea = parseAreaSelection(document.querySelector("#customer-address").value);
+  const selectedAddress = selectedArea
+    ? savedAddresses.find((address) => areaKey(address) === selectedArea.key) || ""
+    : "";
+  if (!selectedAddress || !selectedArea) {
+    error.textContent = "Vui lòng chọn khu vực giao hàng.";
+    error.hidden = false;
+    return;
+  }
   customers.push({
     id: crypto.randomUUID(),
     name,
     phone,
-    address: document.querySelector("#customer-address").value.trim(),
+    address: selectedAddress,
+    areaAssignments: selectedArea && selectedAddress
+      ? [{ address: selectedAddress, ownerIds: [selectedArea.ownerId] }]
+      : [],
     latitude: null,
     longitude: null,
     deliveryDates: [localDateKey()],
@@ -1441,6 +1858,7 @@ elements.form.addEventListener("submit", (event) => {
     elements.dialog.close();
     elements.search.value = "";
     renderCustomers();
+    renderCustomerManagement();
     showToast("Đã thêm khách vào danh sách giao hôm nay.");
   }
 });
