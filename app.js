@@ -33,6 +33,11 @@ const elements = {
   locationExitHelp: document.querySelector("#location-exit-help"),
   addressSelect: document.querySelector("#customer-address"),
   addressHint: document.querySelector("#address-hint"),
+  showNewCustomerAddressButton: document.querySelector("#show-new-customer-address-button"),
+  newCustomerAddressEntry: document.querySelector("#new-customer-address-entry"),
+  newCustomerAddressInput: document.querySelector("#new-customer-address"),
+  addCustomerAddressButton: document.querySelector("#add-customer-address-button"),
+  customerAddressError: document.querySelector("#customer-address-error"),
   settingsDialog: document.querySelector("#settings-dialog"),
   fontSizeSelect: document.querySelector("#font-size-select"),
   savedAddresses: document.querySelector("#saved-addresses"),
@@ -163,6 +168,24 @@ function loadSavedAddresses() {
     showToast("Không đọc được danh sách địa chỉ đã lưu.");
     return [];
   }
+}
+
+function addSavedAddress(address) {
+  if (savedAddresses.some((existing) =>
+    existing.toLocaleLowerCase("vi") === address.toLocaleLowerCase("vi"),
+  )) return "duplicate";
+
+  const key = areaKey(address);
+  const previousOwners = areaOwners[key];
+  savedAddresses.push(address);
+  areaOwners[key] = [deviceId];
+  if (!saveAddresses()) {
+    savedAddresses.pop();
+    if (previousOwners) areaOwners[key] = previousOwners;
+    else delete areaOwners[key];
+    return "failed";
+  }
+  return "saved";
 }
 
 function loadDeviceId() {
@@ -881,8 +904,8 @@ function renderAddressOptions(selectedAddress = "") {
     elements.addressSelect.value = "";
   }
   elements.addressHint.textContent = savedAddresses.length
-    ? "Có thể thêm hoặc sửa danh sách khu vực trong Cài đặt."
-    : "Chưa có khu vực. Hãy thêm trong Cài đặt để chọn tại đây.";
+    ? "Có thể thêm khu vực mới tại đây hoặc quản lý danh sách trong Cài đặt."
+    : "Chưa có khu vực. Hãy thêm khu vực mới tại đây.";
 }
 
 function renderAreaOptions(selectedArea = elements.areaFilter.value) {
@@ -1240,6 +1263,9 @@ function updateDeliveryMap() {
 function openCustomerDialog(phone = "") {
   elements.form.reset();
   document.querySelector("#form-error").hidden = true;
+  elements.newCustomerAddressEntry.hidden = true;
+  elements.showNewCustomerAddressButton.setAttribute("aria-expanded", "false");
+  elements.customerAddressError.hidden = true;
   document.querySelector("#customer-phone").value = phone;
   renderAddressOptions();
   elements.dialog.showModal();
@@ -1695,24 +1721,15 @@ elements.addressForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const input = document.querySelector("#new-address");
   const address = input.value.trim();
-  const duplicate = savedAddresses.some((existing) =>
-    existing.toLocaleLowerCase("vi") === address.toLocaleLowerCase("vi"),
-  );
   const error = document.querySelector("#address-error");
   if (!address) return;
-  if (duplicate) {
+  const result = addSavedAddress(address);
+  if (result === "duplicate") {
     error.textContent = "Địa chỉ này đã có trong danh sách.";
     error.hidden = false;
     return;
   }
-
-  savedAddresses.push(address);
-  areaOwners[areaKey(address)] = [deviceId];
-  if (!saveAddresses()) {
-    savedAddresses.pop();
-    delete areaOwners[areaKey(address)];
-    return;
-  }
+  if (result === "failed") return;
   error.hidden = true;
   input.value = "";
   renderSavedAddresses();
@@ -1720,6 +1737,48 @@ elements.addressForm.addEventListener("submit", (event) => {
   renderAddressOptions(address);
   renderAreaOptions();
   showToast("Đã thêm địa chỉ vào danh sách.");
+});
+
+elements.showNewCustomerAddressButton.addEventListener("click", () => {
+  const isExpanded = elements.showNewCustomerAddressButton.getAttribute("aria-expanded") === "true";
+  elements.showNewCustomerAddressButton.setAttribute("aria-expanded", String(!isExpanded));
+  elements.newCustomerAddressEntry.hidden = isExpanded;
+  elements.customerAddressError.hidden = true;
+  if (!isExpanded) elements.newCustomerAddressInput.focus();
+});
+
+elements.newCustomerAddressInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  elements.addCustomerAddressButton.click();
+});
+
+elements.addCustomerAddressButton.addEventListener("click", () => {
+  const address = elements.newCustomerAddressInput.value.trim();
+  if (!address) {
+    elements.customerAddressError.textContent = "Vui lòng nhập tên khu vực giao hàng.";
+    elements.customerAddressError.hidden = false;
+    elements.newCustomerAddressInput.focus();
+    return;
+  }
+  const result = addSavedAddress(address);
+  if (result === "duplicate") {
+    elements.customerAddressError.textContent = "Khu vực này đã có trong danh sách.";
+    elements.customerAddressError.hidden = false;
+    elements.newCustomerAddressInput.focus();
+    return;
+  }
+  if (result === "failed") return;
+
+  elements.newCustomerAddressInput.value = "";
+  elements.newCustomerAddressEntry.hidden = true;
+  elements.showNewCustomerAddressButton.setAttribute("aria-expanded", "false");
+  elements.customerAddressError.hidden = true;
+  renderSavedAddresses();
+  renderCustomerManagement();
+  renderAddressOptions(address);
+  renderAreaOptions();
+  showToast("Đã thêm khu vực và chọn cho khách hàng.");
 });
 
 elements.savedAddresses.addEventListener("click", (event) => {

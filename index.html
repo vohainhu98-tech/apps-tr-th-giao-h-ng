@@ -168,6 +168,17 @@
             <option value="">Chọn khu vực giao hàng</option>
           </select>
         </label>
+        <div class="customer-address-entry">
+          <button class="text-button" id="show-new-customer-address-button" type="button" aria-expanded="false" aria-controls="new-customer-address-entry">＋ Thêm khu vực mới</button>
+          <div id="new-customer-address-entry" hidden>
+            <label class="sr-only" for="new-customer-address">Tên khu vực giao hàng mới</label>
+            <div class="address-entry-form">
+              <input id="new-customer-address" maxlength="180" placeholder="Ví dụ: Chung cư ABC, Quận 1">
+              <button class="primary-button" id="add-customer-address-button" type="button"><span aria-hidden="true">＋</span> Thêm</button>
+            </div>
+            <p class="form-error" id="customer-address-error" role="alert" hidden></p>
+          </div>
+        </div>
         <p class="form-hint address-hint" id="address-hint">Quản lý khu vực có sẵn trong Cài đặt.</p>
         <p class="form-error" id="form-error" role="alert" hidden></p>
         <div class="dialog-actions">
