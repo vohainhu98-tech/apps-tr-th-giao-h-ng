@@ -267,7 +267,7 @@ main { padding-top: 10px; }
 .map-panel { margin-top: 10px; padding: 14px 16px 10px; border-radius: 13px; }
 .map-heading h2 { font-size: 14px; }
 .map-status { margin: 7px 0 5px; font-size: 9px; }
-.delivery-map { height: 240px; border-radius: 9px; }
+.delivery-map { height: 420px; border-radius: 9px; }
 .map-legend { gap: 6px 12px; margin-top: 7px; font-size: 9px; }
 .map-attribution-note { margin-top: 5px; font-size: 8px; }
 .nearby-panel { gap: 10px; margin-top: 10px; padding: 12px 14px; border-radius: 11px; }
@@ -320,7 +320,7 @@ main { padding-top: 10px; }
   .map-heading h2 { max-width: 180px; font-size: 11px; }
   .map-fit-button { min-height: 29px; padding: 0 5px; font-size: 8px; }
   .map-status { min-height: 12px; margin: 5px 0 4px; font-size: 8px; }
-  .delivery-map { height: 205px; }
+  .delivery-map { height: 360px; }
   .map-legend { gap: 4px 8px; margin-top: 6px; font-size: 8px; }
   .map-legend-dot { width: 8px; height: 8px; }
   .map-attribution-note { font-size: 7px; }
